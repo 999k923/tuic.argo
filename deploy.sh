@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (v2.1 - 修复 Argo 路径转发)
+# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (v2.2 - 强制使用 Ingress 规则)
 #
 # 功能:
 #   - install:   提供菜单选择安装 TUIC, VLESS/VMess+Argo, 或两者
@@ -242,10 +242,32 @@ do_start() {
     
     if [ "$INSTALL_ARGO" = "true" ]; then
         if [ -n "$ARGO_TOKEN" ]; then
-            # 对于固定 Token，使用 --url 参数同样有效，且更简单
-            nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
+            # 对于固定 Token，强制使用 ingress 配置文件以确保路径转发
+            TUNNEL_ID=$(echo "$ARGO_TOKEN" | base64 -d 2>/dev/null | grep -o '"TunnelID":"[^"]*' | sed 's/"TunnelID":"//' 2>/dev/null)
+            if [ -z "$TUNNEL_ID" ]; then
+                print_msg "警告: 无法从 Token 中解析 Tunnel ID。将尝试从域名反查。" "yellow"
+                TUNNEL_ID=$($CLOUDFLARED_PATH tunnel list | grep "$ARGO_DOMAIN" | awk '{print $1}')
+                if [ -z "$TUNNEL_ID" ]; then
+                    print_msg "错误: 无法找到 Tunnel ID，请检查 Token 和域名是否匹配。" "red"; exit 1;
+                fi
+            fi
+            CRED_FILE_PATH="$AGSBX_DIR/${TUNNEL_ID}.json"
+            echo "$ARGO_TOKEN" > "$CRED_FILE_PATH"
+
+            cat > "$AGSBX_DIR/config.yml" <<EOF
+tunnel: ${TUNNEL_ID}
+credentials-file: ${CRED_FILE_PATH}
+log-level: info
+
+ingress:
+  - hostname: ${ARGO_DOMAIN}
+    service: http://127.0.0.1:${ARGO_LOCAL_PORT}
+  - service: http_status:404
+EOF
+            nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run > "$AGSBX_DIR/argo.log" 2>&1 &
+
         else
-            # 对于临时隧道
+            # 对于临时隧道, --url 方式工作正常
             nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
             print_msg "临时隧道将在几秒后建立..." "yellow"
         fi
