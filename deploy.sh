@@ -1,12 +1,12 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One 节点管理脚本 (v6.1 - 修复语法错误)
+# All-in-One 节点管理脚本 (v6.2 - 下载校验版)
 #
 # 更新:
-#   - 修复了 do_start 函数中的 if/else 语法错误。
-#   - 创建永久快捷键 `jiedian`。
-#   - 支持 TUIC, Argo (VLESS/VMess) 的灵活安装与管理。
+#   - 增加下载文件后的完整性校验，如果代理下载失败，自动切换到官方链接重试。
+#   - 更换为更稳定的加速代理 kgithub.com。
+#   - 修复了安装时未提示输入端口等信息的逻辑错误。
 # ==============================================================================
 
 # --- 颜色定义 ---
@@ -17,7 +17,7 @@ C_BLUE='\033[0;34m'
 C_NC='\033[0m'
 
 # --- 脚本常量 ---
-SCRIPT_URL="https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh"
+SCRIPT_URL="https://cdn.jsdelivr.net/gh/999k923/tuic.argo@main/deploy.sh"
 HOME_DIR=$(eval echo ~ )
 AGSBX_DIR="$HOME_DIR/agsbx"
 SINGBOX_PATH="$AGSBX_DIR/sing-box"
@@ -47,13 +47,30 @@ get_cpu_arch() {
     esac
 }
 
+# 增强的下载函数，带校验和重试
 download_file() {
     local url="$1"
     local dest="$2"
-    local proxy_url="https://ghproxy.com/$url"
+    local is_tarball="$3" # 新增参数，标记是否为 tar.gz 文件
+
+    # 尝试使用加速代理下载
+    local proxy_url="https://kgithub.com/${url}"
     print_msg "正在通过加速代理下载 $(basename "$dest" )..." "yellow"
     if command -v curl >/dev/null 2>&1; then curl -# -Lo "$dest" "$proxy_url"; else wget -q --show-progress -O "$dest" "$proxy_url"; fi
-    if [ $? -ne 0 ]; then print_msg "下载失败: $proxy_url" "red"; exit 1; fi
+
+    # 如果是 tarball，进行完整性校验
+    if [ "$is_tarball" = "true" ]; then
+        if ! tar -t -f "$dest" > /dev/null 2>&1; then
+            print_msg "代理下载的文件无效，正在切换到官方链接重试..." "red"
+            if command -v curl >/dev/null 2>&1; then curl -# -Lo "$dest" "$url"; else wget -q --show-progress -O "$dest" "$url"; fi
+        fi
+    fi
+
+    # 最终检查
+    if [ ! -s "$dest" ] || ([ "$is_tarball" = "true" ] && ! tar -t -f "$dest" > /dev/null 2>&1); then
+        print_msg "下载失败: $url" "red"; exit 1
+    fi
+    
     chmod +x "$dest"
     print_msg "$(basename "$dest") 下载并设置权限成功。" "green"
 }
@@ -73,19 +90,26 @@ do_install() {
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
     
+    # 【修复】将 INSTALL_* 变量设置移到 case 内部，确保逻辑正确
     case "$choice" in
-        1) echo "INSTALL_TUIC=true" >> "$VARS_PATH" ;;
-        2) echo "INSTALL_ARGO=true" >> "$VARS_PATH" ;;
-        3) echo "INSTALL_TUIC=true" >> "$VARS_PATH"; echo "INSTALL_ARGO=true" >> "$VARS_PATH" ;;
+        1) 
+            echo "INSTALL_TUIC=true" >> "$VARS_PATH"
+            print_msg "\n--- 配置 TUIC 节点 ---" "blue"
+            printf "${C_GREEN}请输入 TUIC 端口 (例如 443): ${C_NC}"; read -r TUIC_PORT
+            echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
+            ;;
+        2) 
+            echo "INSTALL_ARGO=true" >> "$VARS_PATH"
+            ;;
+        3) 
+            echo "INSTALL_TUIC=true" >> "$VARS_PATH"; echo "INSTALL_ARGO=true" >> "$VARS_PATH"
+            print_msg "\n--- 配置 TUIC 节点 ---" "blue"
+            printf "${C_GREEN}请输入 TUIC 端口 (例如 443): ${C_NC}"; read -r TUIC_PORT
+            echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
+            ;;
     esac
 
-    if [ "$INSTALL_TUIC" = "true" ]; then
-        print_msg "\n--- 配置 TUIC 节点 ---" "blue"
-        printf "${C_GREEN}请输入 TUIC 端口 (例如 443): ${C_NC}"; read -r TUIC_PORT
-        echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
-    fi
-
-    if [ "$INSTALL_ARGO" = "true" ]; then
+    if [ "$(grep -c "INSTALL_ARGO=true" "$VARS_PATH")" -gt 0 ]; then
         print_msg "\n--- 配置 Argo 隧道节点 ---" "blue"
         printf "${C_GREEN}Argo 节点使用 VLESS 还是 VMess? [1 for VLESS, 2 for VMess]: ${C_NC}"; read -r ARGO_PROTOCOL_CHOICE
         if [ "$ARGO_PROTOCOL_CHOICE" = "1" ]; then echo "ARGO_PROTOCOL='vless'" >> "$VARS_PATH"; else echo "ARGO_PROTOCOL='vmess'" >> "$VARS_PATH"; fi
@@ -105,14 +129,15 @@ do_install() {
     if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_ARGO" = "true" ]; then
         if [ ! -f "$SINGBOX_PATH" ]; then
             local singbox_url="https://github.com/SagerNet/sing-box/releases/download/v1.9.0-beta.13/sing-box-1.9.0-beta.13-linux-${cpu_arch}.tar.gz"
-            download_file "$singbox_url" "$AGSBX_DIR/sing-box.tar.gz"; tar -xzf "$AGSBX_DIR/sing-box.tar.gz" -C "$AGSBX_DIR"
+            download_file "$singbox_url" "$AGSBX_DIR/sing-box.tar.gz" "true" # 标记为 tarball
+            tar -xzf "$AGSBX_DIR/sing-box.tar.gz" -C "$AGSBX_DIR"
             mv "$AGSBX_DIR/sing-box-1.9.0-beta.13-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
             rm -f "$AGSBX_DIR/sing-box.tar.gz"; rm -rf "$AGSBX_DIR/sing-box-1.9.0-beta.13-linux-${cpu_arch}"
         fi
     fi
     if [ "$INSTALL_ARGO" = "true" ]; then
         if [ ! -f "$CLOUDFLARED_PATH" ]; then
-            download_file "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}" "$CLOUDFLARED_PATH"
+            download_file "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}" "$CLOUDFLARED_PATH" "false" # 标记为非 tarball
         fi
     fi
 
@@ -143,6 +168,9 @@ EOF
     do_start
     do_list
 }
+
+# ... (do_list, do_start, do_stop, do_uninstall, create_shortcut, show_menu, main 函数保持不变) ...
+# 为了简洁，这里省略了未改动的函数，请确保您复制的是包含所有函数的完整脚本。
 
 do_list() {
     if ! load_variables; then print_msg "错误: 未找到任何节点配置。请先使用安装选项。" "red"; return; fi
@@ -183,7 +211,6 @@ do_start() {
         print_msg "sing-box 服务已在后台启动。" "green"
     fi
     if [ "$INSTALL_ARGO" = "true" ]; then
-        # 【修复】将单行 if/else 结构改写为标准的多行结构
         if [ -n "$ARGO_TOKEN" ]; then
             nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
         else
@@ -228,7 +255,7 @@ create_shortcut() {
 show_menu() {
     clear
     print_msg "==============================================" "blue"
-    print_msg "          All-in-One 节点管理菜单 (v6.1)" "blue"
+    print_msg "          All-in-One 节点管理菜单 (v6.2)" "blue"
     print_msg "==============================================" "blue"
     print_msg " 1. 安装 TUIC 节点" "yellow"
     print_msg " 2. 安装 Argo 隧道节点 (VLESS/VMess)" "yellow"
