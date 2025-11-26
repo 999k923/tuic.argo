@@ -1,20 +1,13 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One TUIC & VMess+Argo 管理脚本 (带安装菜单)
+# All-in-One TUIC & VMess/VLESS+Argo 管理脚本 (v5)
 #
-# 功能:
-#   - install:   提供菜单选择安装 TUIC, VMess+Argo, 或两者
-#   - list:      显示已配置的节点信息
-#   - start:     根据安装内容启动后台服务
-#   - stop:      停止所有后台服务
-#   - restart:   重启后台服务
-#   - uninstall: 卸载并清理所有文件
-#   - help:      显示此帮助菜单
-#
-# 使用:
-#   首次安装: bash <(curl -Ls [URL]) install
-#   后续管理: bash deploy.sh [command]
+# 更新:
+#   - Argo 节点增加 VLESS 和 VMess 协议选择。
+#   - 增加 Argo 优选地址/IP 输入，并提供默认值。
+#   - 修复了安装后自动显示节点信息的问题。
+#   - 使用 ghproxy.com 加速 GitHub 下载。
 # ==============================================================================
 
 # --- 颜色定义 ---
@@ -57,9 +50,10 @@ get_cpu_arch() {
 download_file() {
     local url="$1"
     local dest="$2"
-    print_msg "正在下载 $(basename "$dest")..." "yellow"
-    if command -v curl >/dev/null 2>&1; then curl -# -Lo "$dest" "$url"; else wget -q --show-progress -O "$dest" "$url"; fi
-    if [ $? -ne 0 ]; then print_msg "下载失败: $url" "red"; exit 1; fi
+    local proxy_url="https://ghproxy.com/$url"
+    print_msg "正在通过加速代理下载 $(basename "$dest" )..." "yellow"
+    if command -v curl >/dev/null 2>&1; then curl -# -Lo "$dest" "$proxy_url"; else wget -q --show-progress -O "$dest" "$proxy_url"; fi
+    if [ $? -ne 0 ]; then print_msg "下载失败: $proxy_url" "red"; exit 1; fi
     chmod +x "$dest"
     print_msg "$(basename "$dest") 下载并设置权限成功。" "green"
 }
@@ -78,60 +72,63 @@ do_install() {
     print_msg "--- 节点安装向导 ---" "blue"
     print_msg "请选择您要安装的节点类型:" "yellow"
     print_msg "  1) 仅安装 TUIC"
-    print_msg "  2) 仅安装 VMess + Argo"
-    print_msg "  3) 同时安装 TUIC 和 VMess + Argo"
+    print_msg "  2) 仅安装 Argo 隧道节点 (VLESS / VMess)"
+    print_msg "  3) 同时安装 TUIC 和 Argo 隧道节点"
     printf "${C_GREEN}请输入选项 [1-3]: ${C_NC}"; read -r INSTALL_CHOICE
 
-    # 清理旧变量并准备新配置
     mkdir -p "$AGSBX_DIR"
-    : > "$VARS_PATH" # 清空变量文件
+    : > "$VARS_PATH"
     
     # 根据选择获取输入
     case "$INSTALL_CHOICE" in
         1) # 仅 TUIC
             print_msg "您选择了: 仅安装 TUIC" "green"
             printf "${C_GREEN}请输入 TUIC 端口 (例如 443): ${C_NC}"; read -r TUIC_PORT
-            echo "INSTALL_TUIC=true" >> "$VARS_PATH"
-            echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
+            echo "INSTALL_TUIC=true" >> "$VARS_PATH"; echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
             ;;
-        2) # 仅 VMess + Argo
-            print_msg "您选择了: 仅安装 VMess + Argo" "green"
-            printf "${C_GREEN}请输入 VMess 本地监听端口 (例如 8080): ${C_NC}"; read -r VMESS_PORT
-            printf "${C_GREEN}请输入 Argo Tunnel 的 Token (若使用临时隧道，请直接回车): ${C_NC}"; read -r ARGO_TOKEN
-            if [ -n "$ARGO_TOKEN" ]; then
-                printf "${C_GREEN}请输入 Argo Tunnel 对应的域名: ${C_NC}"; read -r ARGO_DOMAIN
-            fi
-            echo "INSTALL_VMESS=true" >> "$VARS_PATH"
-            echo "VMESS_PORT=${VMESS_PORT}" >> "$VARS_PATH"
-            echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
-            echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
+        2) # 仅 Argo
+            echo "INSTALL_ARGO=true" >> "$VARS_PATH"
             ;;
         3) # 两者都安装
             print_msg "您选择了: 同时安装两者" "green"
             printf "${C_GREEN}请输入 TUIC 端口 (例如 443): ${C_NC}"; read -r TUIC_PORT
-            printf "${C_GREEN}请输入 VMess 本地监听端口 (例如 8080): ${C_NC}"; read -r VMESS_PORT
-            printf "${C_GREEN}请输入 Argo Tunnel 的 Token (若使用临时隧道，请直接回车): ${C_NC}"; read -r ARGO_TOKEN
-            if [ -n "$ARGO_TOKEN" ]; then
-                printf "${C_GREEN}请输入 Argo Tunnel 对应的域名: ${C_NC}"; read -r ARGO_DOMAIN
-            fi
-            echo "INSTALL_TUIC=true" >> "$VARS_PATH"
-            echo "INSTALL_VMESS=true" >> "$VARS_PATH"
-            echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
-            echo "VMESS_PORT=${VMESS_PORT}" >> "$VARS_PATH"
-            echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
-            echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
+            echo "INSTALL_TUIC=true" >> "$VARS_PATH"; echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
+            echo "INSTALL_ARGO=true" >> "$VARS_PATH"
             ;;
-        *)
-            print_msg "无效的选项，安装已取消。" "red"; exit 1 ;;
+        *) print_msg "无效的选项，安装已取消。" "red"; exit 1 ;;
     esac
 
-    # 加载刚刚保存的变量
+    # 如果选择了安装 Argo，则获取 Argo 相关配置
+    if [ "$(grep -c "INSTALL_ARGO=true" "$VARS_PATH")" -gt 0 ]; then
+        print_msg "\n--- 配置 Argo 隧道节点 ---" "blue"
+        printf "${C_GREEN}Argo 节点使用 VLESS 还是 VMess? [1 for VLESS, 2 for VMess]: ${C_NC}"; read -r ARGO_PROTOCOL_CHOICE
+        if [ "$ARGO_PROTOCOL_CHOICE" = "1" ]; then
+            echo "ARGO_PROTOCOL='vless'" >> "$VARS_PATH"; print_msg "Argo 节点协议: VLESS" "green"
+        else
+            echo "ARGO_PROTOCOL='vmess'" >> "$VARS_PATH"; print_msg "Argo 节点协议: VMess" "green"
+        fi
+
+        printf "${C_GREEN}请输入 Argo 节点本地监听端口 (例如 8080): ${C_NC}"; read -r ARGO_PORT
+        printf "${C_GREEN}请输入 Argo Tunnel 的 Token (若使用临时隧道，请直接回车): ${C_NC}"; read -r ARGO_TOKEN
+        if [ -n "$ARGO_TOKEN" ]; then
+            printf "${C_GREEN}请输入 Argo Tunnel 对应的域名: ${C_NC}"; read -r ARGO_DOMAIN
+        fi
+        printf "${C_GREEN}请输入 Argo 优选地址/IP (直接回车使用默认: www.visa.com.sg): ${C_NC}"; read -r ARGO_PREF_ADDR
+        if [ -z "$ARGO_PREF_ADDR" ]; then
+            ARGO_PREF_ADDR="www.visa.com.sg"
+        fi
+        echo "ARGO_PORT=${ARGO_PORT}" >> "$VARS_PATH"
+        echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
+        echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
+        echo "ARGO_PREF_ADDR='${ARGO_PREF_ADDR}'" >> "$VARS_PATH"
+    fi
+
     load_variables
 
     # 安装依赖
     print_msg "\n--- 正在准备依赖环境 ---" "blue"
     local cpu_arch; cpu_arch=$(get_cpu_arch)
-    if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_VMESS" = "true" ]; then
+    if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_ARGO" = "true" ]; then
         if [ ! -f "$SINGBOX_PATH" ]; then
             local singbox_url="https://github.com/SagerNet/sing-box/releases/download/v1.9.0-beta.13/sing-box-1.9.0-beta.13-linux-${cpu_arch}.tar.gz"
             local temp_tar_path="$AGSBX_DIR/sing-box.tar.gz"
@@ -141,20 +138,18 @@ do_install() {
             rm -f "$temp_tar_path"; rm -rf "$AGSBX_DIR/sing-box-1.9.0-beta.13-linux-${cpu_arch}"
         fi
     fi
-    if [ "$INSTALL_VMESS" = "true" ]; then
+    if [ "$INSTALL_ARGO" = "true" ]; then
         if [ ! -f "$CLOUDFLARED_PATH" ]; then
             local cloudflared_url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}"
             download_file "$cloudflared_url" "$CLOUDFLARED_PATH"
         fi
     fi
 
-    # 生成配置
     print_msg "\n--- 正在生成配置文件 ---" "blue"
     local UUID; UUID=$($SINGBOX_PATH generate uuid )
     echo "UUID='${UUID}'" >> "$VARS_PATH"
     print_msg "生成的 UUID: $UUID" "yellow"
 
-    # 生成证书 (如果需要)
     if [ "$INSTALL_TUIC" = "true" ]; then
         if [ ! -f "$CERT_PATH" ] || [ ! -f "$KEY_PATH" ]; then
             openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
@@ -162,33 +157,26 @@ do_install() {
         fi
     fi
 
-    # 动态构建 inbounds
     local inbounds=""
     if [ "$INSTALL_TUIC" = "true" ]; then
-        inbounds=$(cat <<EOF
-        {"type": "tuic", "tag": "tuic-in", "listen": "::", "listen_port": ${TUIC_PORT}, "users": [{"uuid": "${UUID}", "password": "${UUID}"}], "congestion_control": "bbr", "tls": {"enabled": true, "server_name": "www.bing.com", "alpn": ["h3"], "certificate_path": "${CERT_PATH}", "key_path": "${KEY_PATH}"}}
-EOF
-)
+        inbounds=$(printf '{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":%s,"users":[{"uuid":"%s","password":"%s"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"%s","key_path":"%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")
     fi
-    if [ "$INSTALL_VMESS" = "true" ]; then
-        # 如果已有tuic配置，则在前面加一个逗号
+    if [ "$INSTALL_ARGO" = "true" ]; then
         if [ -n "$inbounds" ]; then inbounds="$inbounds,"; fi
-        inbounds="$inbounds$(cat <<EOF
-        {"type": "vmess", "tag": "vmess-in", "listen": "127.0.0.1", "listen_port": ${VMESS_PORT}, "users": [{"uuid": "${UUID}", "alterId": 0}], "transport": {"type": "ws", "path": "/${UUID}-vm"}}
-EOF
-)"
+        if [ "$ARGO_PROTOCOL" = "vless" ]; then
+            inbounds="$inbounds$(printf '{"type":"vless","tag":"argo-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","flow":"xtls-rprx-vision"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_PORT" "$UUID" "$UUID")"
+        else # vmess
+            inbounds="$inbounds$(printf '{"type":"vmess","tag":"argo-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_PORT" "$UUID" "$UUID")"
+        fi
     fi
 
-    # 创建 sing-box 配置文件
     cat > "$CONFIG_PATH" <<EOF
-{
-    "log": {"level": "info", "timestamp": true},
-    "inbounds": [ ${inbounds} ],
-    "outbounds": [{"type": "direct", "tag": "direct"}]
-}
+{ "log": {"level": "info", "timestamp": true}, "inbounds": [ ${inbounds} ], "outbounds": [{"type": "direct", "tag": "direct"}] }
 EOF
     print_msg "配置文件创建成功。" "green"
+    
     do_start
+    do_list
 }
 
 do_list() {
@@ -202,13 +190,13 @@ do_list() {
     if [ "$INSTALL_TUIC" = "true" ]; then
         local tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
         local tuic_link="tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-${hostname}"
-        print_msg "--- TUIC 节点 ---" "yellow"
-        echo "$tuic_link"
+        print_msg "--- TUIC 节点 ---" "yellow"; echo "$tuic_link"
     fi
 
-    if [ "$INSTALL_VMESS" = "true" ]; then
+    if [ "$INSTALL_ARGO" = "true" ]; then
         local current_argo_domain="$ARGO_DOMAIN"
         if [ -z "$ARGO_TOKEN" ]; then
+            print_msg "正在等待临时 Argo 域名生成..." "yellow"; sleep 8 
             local temp_argo_domain; temp_argo_domain=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | sed 's/https:\/\///' | head -n 1 )
             if [ -z "$temp_argo_domain" ]; then
                 print_msg "无法自动获取临时 Argo 域名，请检查日志: $AGSBX_DIR/argo.log" "red"
@@ -217,29 +205,33 @@ do_list() {
                 current_argo_domain=$temp_argo_domain
             fi
         fi
-        local vmess_json; vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$current_argo_domain" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
-        local vmess_base64; vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
-        local vmess_link="vmess://${vmess_base64}"
-        print_msg "\n--- VMess + Argo (TLS) 节点 ---" "yellow"
-        echo "$vmess_link"
+        
+        if [ "$ARGO_PROTOCOL" = "vless" ]; then
+            local vless_link="vless://${UUID}@${ARGO_PREF_ADDR}:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
+            print_msg "\n--- Argo VLESS 节点 ---" "yellow"; echo "$vless_link"
+        else # vmess
+            local vmess_json; vmess_json=$(printf '{"v":"2","ps":"argo-vmess-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$ARGO_PREF_ADDR" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
+            local vmess_base64; vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
+            local vmess_link="vmess://${vmess_base64}"
+            print_msg "\n--- Argo VMess 节点 ---" "yellow"; echo "$vmess_link"
+        fi
     fi
 }
 
 do_start() {
     print_msg "--- 启动服务 ---" "blue"
     if ! load_variables; then print_msg "错误: 未找到配置文件。请先执行 'install' 命令。" "red"; exit 1; fi
-    do_stop # 先停止，避免重复启动
+    do_stop
     
-    if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_VMESS" = "true" ]; then
+    if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_ARGO" = "true" ]; then
         nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
         print_msg "sing-box 服务已在后台启动。" "green"
     fi
-    if [ "$INSTALL_VMESS" = "true" ]; then
+    if [ "$INSTALL_ARGO" = "true" ]; then
         if [ -n "$ARGO_TOKEN" ]; then
             nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
         else
-            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${VMESS_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
-            print_msg "临时隧道将在几秒后建立..." "yellow"
+            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
         fi
         print_msg "cloudflared 服务已在后台启动 。" "green"
     fi
@@ -268,12 +260,12 @@ do_uninstall() {
 }
 
 show_help() {
-    print_msg "All-in-One TUIC & VMess+Argo 管理脚本" "blue"
+    print_msg "All-in-One TUIC & VMess/VLESS+Argo 管理脚本" "blue"
     echo "----------------------------------------"
     print_msg "用法: bash $0 [命令]"
     echo
     print_msg "可用命令:" "yellow"
-    print_msg "  install    - 显示安装菜单，可选择安装 TUIC, VMess+Argo, 或两者"
+    print_msg "  install    - 显示安装菜单，可选择安装 TUIC, Argo(VLESS/VMess), 或两者"
     print_msg "  list       - 显示已配置的节点信息"
     print_msg "  start      - 根据安装内容启动后台服务"
     print_msg "  stop       - 停止所有后台服务"
@@ -285,7 +277,6 @@ show_help() {
 
 # --- 脚本主入口 ---
 main() {
-    # 如果脚本是通过 curl 执行的，自动设为 install
     if [ ! -t 0 ]; then
         do_install
     elif [ -z "$1" ]; then
