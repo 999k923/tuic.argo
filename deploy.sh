@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (v2.3 - 修复 Token 认证与路径转发)
+# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (v2.4 - 移除 VLESS 错误流控)
 #
 # 功能:
 #   - install:   提供菜单选择安装 TUIC, VLESS/VMess+Argo, 或两者
@@ -171,7 +171,7 @@ do_install() {
         if [ -n "$inbounds" ]; then inbounds="$inbounds,"; fi
         
         if [ "$ARGO_PROTOCOL" = "vless" ]; then
-            inbounds="$inbounds$(printf '{"type": "vless", "tag": "vless-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s", "flow": "xtls-rprx-vision"}], "transport": {"type": "ws", "path": "/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")"
+            inbounds="$inbounds$(printf '{"type": "vless", "tag": "vless-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s"}], "transport": {"type": "ws", "path": "/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")"
         else
             inbounds="$inbounds$(printf '{"type": "vmess", "tag": "vmess-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s", "alterId": 0}], "transport": {"type": "ws", "path": "/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")"
         fi
