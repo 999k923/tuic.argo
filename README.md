@@ -1,7 +1,8 @@
 1. 安装命令
 这是在您的服务器上执行一键安装的命令。它会从您的 GitHub 链接下载并运行脚本，然后引导您完成交互式安装过程。
-Bash
+```bash
 bash <(curl -Ls https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh ) install
+```
 操作步骤：
 通过 SSH 连接到您的服务器。
 复制并粘贴上面的命令到终端。
@@ -11,42 +12,60 @@ bash <(curl -Ls https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/m
 2. 后续管理命令
 为了方便地管理（停止、重启、卸载等），您需要先将脚本文件下载到服务器上。这个步骤只需要做一次。
 下载管理脚本的命令：
-Bash
+```bash
 curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh && chmod +x deploy.sh
+```
 执行此命令后 ，您的服务器当前目录下就会有一个名为 deploy.sh 的可执行文件。现在，您可以使用它来执行所有管理操作。
 重新显示节点信息
 如果您忘记了节点链接，或者因为使用临时 Argo 隧道而需要获取最新的域名，可以运行此命令。
-Bash
+```bash
 ./deploy.sh list
+```
 停止脚本（停止服务）
 此命令会停止所有由该脚本启动的后台进程（sing-box 和 cloudflared）。
-Bash
+```bash
 ./deploy.sh stop
+```
 重新开启脚本（启动服务）
 如果服务已停止，您可以使用此命令来重新启动它们。
-Bash
+```bash
 ./deploy.sh start
+```
 提示：您也可以直接使用 restart 命令来一步完成停止和启动操作：
-Bash
+```bash
 ./deploy.sh restart
+```
 卸载脚本
 此命令将彻底从您的服务器上删除脚本、所有配置文件和下载的程序。这是一个不可逆的操作。
-Bash
+```bash
 ./deploy.sh uninstall
+```
 脚本会请求您输入 y 确认，以防止误操作。
 总结
 您的需求
 对应的命令
 首次安装
+```bash
 bash <(curl -Ls [您的链接]) install
+```
 下载管理脚本
+```bash
 curl -Lo deploy.sh [您的链接] && chmod +x deploy.sh
+```
 重新显示节点
+```bash
 ./deploy.sh list
+```
 停止服务
+```bash
 ./deploy.sh stop
+```
 重新开启服务
+```bash
 ./deploy.sh start
+```
 卸载脚本
+```bash
 ./deploy.sh uninstall
+```
 现在您拥有了所有需要用到的命令。祝您使用愉快！
