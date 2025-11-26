@@ -46,23 +46,5 @@ curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 ./deploy.sh uninstall
 ```
 脚本会请求您输入 y 确认，以防止误操作。
-总结
-您的需求
-对应的命令
-重新显示节点
-```bash
-./deploy.sh list
-```
-停止服务
-```bash
-./deploy.sh stop
-```
-重新开启服务
-```bash
-./deploy.sh start
-```
-卸载脚本
-```bash
-./deploy.sh uninstall
-```
+
 现在您拥有了所有需要用到的命令。祝您使用愉快！
