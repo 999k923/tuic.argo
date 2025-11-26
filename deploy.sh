@@ -1,13 +1,12 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One 节点管理脚本 (v6 - 快捷键终极版)
+# All-in-One 节点管理脚本 (v6.1 - 修复语法错误)
 #
-# 特点:
-#   - 单一命令入口，集成安装与管理菜单。
-#   - 安装后自动创建永久快捷键 `jiedian`。
+# 更新:
+#   - 修复了 do_start 函数中的 if/else 语法错误。
+#   - 创建永久快捷键 `jiedian`。
 #   - 支持 TUIC, Argo (VLESS/VMess) 的灵活安装与管理。
-#   - 内置 GitHub 加速代理。
 # ==============================================================================
 
 # --- 颜色定义 ---
@@ -175,19 +174,27 @@ do_list() {
 }
 
 do_start() {
+    print_msg "--- 启动服务 ---" "blue"
     if ! load_variables; then print_msg "错误: 未找到任何节点配置。请先使用安装选项。" "red"; return; fi
     do_stop
+    
     if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_ARGO" = "true" ]; then
         nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
         print_msg "sing-box 服务已在后台启动。" "green"
     fi
     if [ "$INSTALL_ARGO" = "true" ]; then
-        if [ -n "$ARGO_TOKEN" ]; then nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &; else nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &; fi
+        # 【修复】将单行 if/else 结构改写为标准的多行结构
+        if [ -n "$ARGO_TOKEN" ]; then
+            nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
+        else
+            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
+        fi
         print_msg "cloudflared 服务已在后台启动 。" "green"
     fi
 }
 
 do_stop() {
+    print_msg "--- 停止服务 ---" "blue"
     pkill -f "$SINGBOX_PATH"
     pkill -f "$CLOUDFLARED_PATH"
     print_msg "所有相关服务已停止。" "green"
@@ -199,7 +206,6 @@ do_uninstall() {
     if [ "$confirmation" != "y" ]; then print_msg "卸载已取消。" "green"; return; fi
     do_stop
     rm -rf "$AGSBX_DIR"
-    # 移除快捷键
     if [ -f "$HOME/.bashrc" ]; then sed -i "/alias jiedian=/d" "$HOME/.bashrc"; fi
     if [ -f "$HOME/.zshrc" ]; then sed -i "/alias jiedian=/d" "$HOME/.zshrc"; fi
     print_msg "卸载完成。请运行 'source ~/.bashrc' 或 'source ~/.zshrc' 或重新登录以使快捷键失效。" "green"
@@ -210,9 +216,7 @@ create_shortcut() {
     if [ -f "$HOME/.bashrc" ]; then shell_config="$HOME/.bashrc"; elif [ -f "$HOME/.zshrc" ]; then shell_config="$HOME/.zshrc"; fi
     
     if [ -n "$shell_config" ]; then
-        # 移除旧的快捷键，以防重复
         sed -i "/alias jiedian=/d" "$shell_config"
-        # 添加新的快捷键
         echo "alias jiedian='bash <(curl -Ls ${SCRIPT_URL})'" >> "$shell_config"
         print_msg "\n快捷键 'jiedian' 已创建成功！" "green"
         print_msg "请运行 'source ${shell_config}' 或重新登录 SSH 后，即可直接使用 'jiedian' 命令管理节点。" "yellow"
@@ -224,7 +228,7 @@ create_shortcut() {
 show_menu() {
     clear
     print_msg "==============================================" "blue"
-    print_msg "          All-in-One 节点管理菜单" "blue"
+    print_msg "          All-in-One 节点管理菜单 (v6.1)" "blue"
     print_msg "==============================================" "blue"
     print_msg " 1. 安装 TUIC 节点" "yellow"
     print_msg " 2. 安装 Argo 隧道节点 (VLESS/VMess)" "yellow"
