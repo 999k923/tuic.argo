@@ -1,12 +1,12 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One 节点管理脚本 (v6.2 - 下载校验版)
+# All-in-One 节点管理脚本 (v6.3 - 终极稳定版)
 #
 # 更新:
-#   - 增加下载文件后的完整性校验，如果代理下载失败，自动切换到官方链接重试。
-#   - 更换为更稳定的加速代理 kgithub.com。
-#   - 修复了安装时未提示输入端口等信息的逻辑错误。
+#   - 彻底重构下载和解压逻辑，使用绝对路径，避免 `mv` 错误。
+#   - 增加严格的步骤检查，确保每一步成功后再继续。
+#   - 增强下载命令，使其在遇到 HTTP 错误时能直接失败。
 # ==============================================================================
 
 # --- 颜色定义 ---
@@ -47,32 +47,38 @@ get_cpu_arch() {
     esac
 }
 
-# 增强的下载函数，带校验和重试
-download_file() {
+# 增强的下载函数，带 HTTP 错误检查
+download_and_verify() {
     local url="$1"
     local dest="$2"
-    local is_tarball="$3" # 新增参数，标记是否为 tar.gz 文件
+    local is_tarball="$3"
 
-    # 尝试使用加速代理下载
+    # 优先尝试加速代理
     local proxy_url="https://kgithub.com/${url}"
     print_msg "正在通过加速代理下载 $(basename "$dest" )..." "yellow"
-    if command -v curl >/dev/null 2>&1; then curl -# -Lo "$dest" "$proxy_url"; else wget -q --show-progress -O "$dest" "$proxy_url"; fi
+    
+    if command -v curl >/dev/null 2>&1; then
+        curl -# -fLo "$dest" "$proxy_url"
+    else
+        wget --show-progress --fail -qO "$dest" "$proxy_url"
+    fi
 
-    # 如果是 tarball，进行完整性校验
-    if [ "$is_tarball" = "true" ]; then
-        if ! tar -t -f "$dest" > /dev/null 2>&1; then
-            print_msg "代理下载的文件无效，正在切换到官方链接重试..." "red"
-            if command -v curl >/dev/null 2>&1; then curl -# -Lo "$dest" "$url"; else wget -q --show-progress -O "$dest" "$url"; fi
+    # 检查下载是否成功，如果不成功或文件无效，则切换到官方链接
+    if [ $? -ne 0 ] || ([ "$is_tarball" = "true" ] && ! tar -t -f "$dest" > /dev/null 2>&1); then
+        print_msg "代理下载失败或文件无效，正在切换到官方链接重试..." "red"
+        if command -v curl >/dev/null 2>&1; then
+            curl -# -fLo "$dest" "$url"
+        else
+            wget --show-progress --fail -qO "$dest" "$url"
         fi
     fi
 
     # 最终检查
-    if [ ! -s "$dest" ] || ([ "$is_tarball" = "true" ] && ! tar -t -f "$dest" > /dev/null 2>&1); then
+    if [ $? -ne 0 ] || [ ! -s "$dest" ]; then
         print_msg "下载失败: $url" "red"; exit 1
     fi
     
-    chmod +x "$dest"
-    print_msg "$(basename "$dest") 下载并设置权限成功。" "green"
+    print_msg "$(basename "$dest") 下载成功。" "green"
 }
 
 get_server_ip() {
@@ -90,7 +96,6 @@ do_install() {
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
     
-    # 【修复】将 INSTALL_* 变量设置移到 case 内部，确保逻辑正确
     case "$choice" in
         1) 
             echo "INSTALL_TUIC=true" >> "$VARS_PATH"
@@ -109,6 +114,7 @@ do_install() {
             ;;
     esac
 
+    # 确保 load_variables 之前，文件里有内容
     if [ "$(grep -c "INSTALL_ARGO=true" "$VARS_PATH")" -gt 0 ]; then
         print_msg "\n--- 配置 Argo 隧道节点 ---" "blue"
         printf "${C_GREEN}Argo 节点使用 VLESS 还是 VMess? [1 for VLESS, 2 for VMess]: ${C_NC}"; read -r ARGO_PROTOCOL_CHOICE
@@ -129,20 +135,30 @@ do_install() {
     if [ "$INSTALL_TUIC" = "true" ] || [ "$INSTALL_ARGO" = "true" ]; then
         if [ ! -f "$SINGBOX_PATH" ]; then
             local singbox_url="https://github.com/SagerNet/sing-box/releases/download/v1.9.0-beta.13/sing-box-1.9.0-beta.13-linux-${cpu_arch}.tar.gz"
-            download_file "$singbox_url" "$AGSBX_DIR/sing-box.tar.gz" "true" # 标记为 tarball
-            tar -xzf "$AGSBX_DIR/sing-box.tar.gz" -C "$AGSBX_DIR"
+            local temp_tar_path="$AGSBX_DIR/sing-box.tar.gz"
+            download_and_verify "$singbox_url" "$temp_tar_path" "true"
+            
+            # 直接解压到目标目录
+            tar -xzf "$temp_tar_path" -C "$AGSBX_DIR"
+            # 从解压出的目录移动到最终位置
             mv "$AGSBX_DIR/sing-box-1.9.0-beta.13-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
-            rm -f "$AGSBX_DIR/sing-box.tar.gz"; rm -rf "$AGSBX_DIR/sing-box-1.9.0-beta.13-linux-${cpu_arch}"
+            # 检查文件是否存在
+            if [ ! -f "$SINGBOX_PATH" ]; then print_msg "错误: sing-box 文件解压或移动失败 。" "red"; exit 1; fi
+            chmod +x "$SINGBOX_PATH"
+            # 清理
+            rm -f "$temp_tar_path"; rm -rf "$AGSBX_DIR/sing-box-1.9.0-beta.13-linux-${cpu_arch}"
         fi
     fi
     if [ "$INSTALL_ARGO" = "true" ]; then
         if [ ! -f "$CLOUDFLARED_PATH" ]; then
-            download_file "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}" "$CLOUDFLARED_PATH" "false" # 标记为非 tarball
+            download_and_verify "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}" "$CLOUDFLARED_PATH" "false"
+            chmod +x "$CLOUDFLARED_PATH"
         fi
     fi
 
     print_msg "\n--- 正在生成配置文件 ---" "blue"
-    local UUID; UUID=$($SINGBOX_PATH generate uuid ); echo "UUID='${UUID}'" >> "$VARS_PATH"
+    if [ ! -f "$SINGBOX_PATH" ]; then print_msg "错误: 找不到 sing-box 程序 ，无法生成配置。" "red"; exit 1; fi
+    local UUID; UUID=$($SINGBOX_PATH generate uuid); echo "UUID='${UUID}'" >> "$VARS_PATH"
     print_msg "生成的 UUID: $UUID" "yellow"
 
     if [ "$INSTALL_TUIC" = "true" ]; then
@@ -255,7 +271,7 @@ create_shortcut() {
 show_menu() {
     clear
     print_msg "==============================================" "blue"
-    print_msg "          All-in-One 节点管理菜单 (v6.2)" "blue"
+    print_msg "          All-in-One 节点管理菜单 (v6.3)" "blue"
     print_msg "==============================================" "blue"
     print_msg " 1. 安装 TUIC 节点" "yellow"
     print_msg " 2. 安装 Argo 隧道节点 (VLESS/VMess)" "yellow"
