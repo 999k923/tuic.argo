@@ -44,14 +44,6 @@ curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 总结
 您的需求
 对应的命令
-首次安装
-```bash
-bash <(curl -Ls [您的链接]) install
-```
-下载管理脚本
-```bash
-curl -Lo deploy.sh [您的链接] && chmod +x deploy.sh
-```
 重新显示节点
 ```bash
 ./deploy.sh list
