@@ -21,8 +21,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/m
 curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh && chmod +x deploy.sh
 ```
 执行此命令后 ，您的服务器当前目录下就会有一个名为 deploy.sh 的可执行文件。现在，您可以使用它来执行所有管理操作。
-重新显示节点信息
-如果您忘记了节点链接，或者因为使用临时 Argo 隧道而需要获取最新的域名，可以运行此命令。重点：导入节点后IP地址和优选ip地址要手动更换一下
+显示节点信息,重点：导入节点后IP地址和优选ip地址要手动更换一下
 ```bash
 ./deploy.sh list
 ```
