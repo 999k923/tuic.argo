@@ -47,22 +47,44 @@ get_cpu_arch() {
 }
 
 download_file() {
-  local url="$1"; local dest="$2"
-  print_msg "Downloading: $url -> $dest" "yellow"
-  mkdir -p "$(dirname "$dest")"
-  if command -v curl >/dev/null 2>&1; then
-    curl -L --fail --retry 3 -o "$dest" "$url" || { print_msg "curl 下载失败: $url" "red"; return 1; }
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q --tries=3 -O "$dest" "$url" || { print_msg "wget 下载失败: $url" "red"; return 1; }
-  else
-    print_msg "错误: 系统缺少 curl 和 wget，请先安装其中一个。" "red"; return 1
-  fi
+    URL="$1"
+    OUTPUT="$2"
 
-  case "$dest" in
-    *.tar.gz|*.tgz|*.zip) print_msg "下载完成(压缩包): $dest" "green" ;;
-    *) chmod +x "$dest" || true; print_msg "下载并设置执行权限: $dest" "green" ;;
-  esac
+    echo -e "\n>>> 检测 GitHub IPv4 连接..."
+    if curl -4 --connect-timeout 4 -s https://github.com >/dev/null; then
+        echo "✅ IPv4 可访问 GitHub，优先使用 IPv4 下载"
+        PROTO="-4"
+    else
+        echo "⚠ IPv4 无法访问 GitHub"
+        PROTO=""
+    fi
+
+    echo -e "\n>>> 开始下载: $URL"
+    if curl $PROTO -L --retry 3 --retry-delay 2 -o "$OUTPUT" "$URL"; then
+        echo "✅ 下载成功: $OUTPUT"
+        return 0
+    fi
+
+    echo "❌ 下载失败，尝试使用镜像源..."
+
+    MIRRORS=(
+        "https://ghproxy.net/"
+        "https://mirror.ghproxy.com/"
+        "https://download.fastgit.org/"
+    )
+
+    for MIRROR in "${MIRRORS[@]}"; do
+        echo "→ 镜像: $MIRROR"
+        if curl $PROTO -L --retry 3 --retry-delay 2 -o "$OUTPUT" "${MIRROR}${URL}"; then
+            echo "✅ 镜像下载成功: $OUTPUT"
+            return 0
+        fi
+    done
+
+    echo "❌ 所有镜像下载失败，请检查网络"
+    return 1
 }
+
 
 # 读取/保存 variables.conf
 load_variables() {
