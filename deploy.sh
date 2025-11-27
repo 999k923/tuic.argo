@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # ==============================================================================
-# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (v2.4 - 移除 VLESS 错误流控)
+# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (v2.7 - 修复配置生成逻辑)
 #
 # 功能:
 #   - install:   提供菜单选择安装 TUIC, VLESS/VMess+Argo, 或两者
@@ -164,16 +164,19 @@ do_install() {
 
     local inbounds=""
     if [ "$INSTALL_TUIC" = "true" ]; then
-        inbounds=$(printf '{"type": "tuic", "tag": "tuic-in", "listen": "::", "listen_port": %s, "users": [{"uuid": "%s", "password": "%s"}], "congestion_control": "bbr", "tls": {"enabled": true, "server_name": "www.bing.com", "alpn": ["h3"], "certificate_path": "%s", "key_path": "%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")
+        local tuic_inbound=$(printf '{"type": "tuic", "tag": "tuic-in", "listen": "::", "listen_port": %s, "users": [{"uuid": "%s", "password": "%s"}], "congestion_control": "bbr", "tls": {"enabled": true, "server_name": "www.bing.com", "alpn": ["h3"], "certificate_path": "%s", "key_path": "%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")
+        inbounds="$tuic_inbound"
     fi
     
     if [ "$INSTALL_ARGO" = "true" ]; then
         if [ -n "$inbounds" ]; then inbounds="$inbounds,"; fi
         
         if [ "$ARGO_PROTOCOL" = "vless" ]; then
-            inbounds="$inbounds$(printf '{"type": "vless", "tag": "vless-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s"}], "transport": {"type": "ws", "path": "/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")"
+            local vless_inbound=$(printf '{"type": "vless", "tag": "vless-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s"}], "transport": {"type": "ws", "path": "/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
+            inbounds="$inbounds$vless_inbound"
         else
-            inbounds="$inbounds$(printf '{"type": "vmess", "tag": "vmess-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s", "alterId": 0}], "transport": {"type": "ws", "path": "/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")"
+            local vmess_inbound=$(printf '{"type": "vmess", "tag": "vmess-in", "listen": "127.0.0.1", "listen_port": %s, "users": [{"uuid": "%s", "alterId": 0}], "transport": {"type": "ws", "path": "/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
+            inbounds="$inbounds$vmess_inbound"
         fi
     fi
 
@@ -185,7 +188,11 @@ do_install() {
 }
 EOF
     print_msg "配置文件创建成功。" "green"
+    
     do_start
+
+    print_msg "\n--- 安装完成，正在获取节点信息 ---" "blue"
+    do_list
 }
 
 do_list() {
@@ -206,7 +213,7 @@ do_list() {
     if [ "$INSTALL_ARGO" = "true" ]; then
         local current_argo_domain="$ARGO_DOMAIN"
         if [ -z "$ARGO_TOKEN" ]; then
-            print_msg "正在等待临时 Argo 域名生成..." "yellow"; sleep 5
+            print_msg "正在等待临时 Argo 域名生成..." "yellow"; sleep 5 < /dev/null
             local temp_argo_domain; temp_argo_domain=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | sed 's/https:\/\///' | head -n 1  )
             if [ -z "$temp_argo_domain" ]; then
                 print_msg "无法自动获取临时 Argo 域名，请检查日志: $AGSBX_DIR/argo.log" "red"
@@ -242,7 +249,6 @@ do_start() {
     
     if [ "$INSTALL_ARGO" = "true" ]; then
         if [ -n "$ARGO_TOKEN" ]; then
-            # 对于固定 Token，强制使用 ingress 配置文件以确保路径转发
             cat > "$AGSBX_DIR/config.yml" <<EOF
 log-level: info
 ingress:
@@ -253,7 +259,6 @@ EOF
             nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
 
         else
-            # 对于临时隧道, --url 方式工作正常
             nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
             print_msg "临时隧道将在几秒后建立..." "yellow"
         fi
@@ -270,7 +275,7 @@ do_stop() {
 
 do_restart() {
     print_msg "--- 重启服务 ---" "blue"
-    do_stop; sleep 1; do_start
+    do_stop; sleep 1 < /dev/null; do_start
 }
 
 do_uninstall() {
