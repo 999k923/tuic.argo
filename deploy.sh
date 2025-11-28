@@ -338,55 +338,33 @@ EOF
 # 服务控制
 # ----------------------------
 do_start() {
-  print_msg "--- 启动服务 ---" "blue"
-  if ! load_variables; then
-    print_msg "错误: 未找到变量文件，请先安装。" "red"
-    exit 1
-  fi
+  print_msg "--- 启动服务 ---" "cyan"
 
-  # 先停止已有进程，避免端口冲突
-  do_stop || true
+  do_stop
   sleep 1
 
-  # 确保使用完整路径
-  local SINGBOX_CMD="$SINGBOX_PATH run -c $CONFIG_PATH"
-  local CLOUDFLARED_CMD="$CLOUDFLARED_PATH"
+  print_msg "启动 sing-box..." "yellow"
+  nohup /root/agsbx/sing-box run -c /root/agsbx/sb.json \
+    > /root/agsbx/sing-box.log 2>&1 &
 
-  # 启动 sing-box
-  if [ -x "$SINGBOX_PATH" ]; then
-    nohup $SINGBOX_CMD > "$AGSBX_DIR/sing-box.log" 2>&1 &
-    sleep 1
-    if ! ss -tulnp | grep -q "$TUIC_PORT"; then
-      print_msg "⚠ sing-box 启动失败或端口未监听，请查看日志: $AGSBX_DIR/sing-box.log" "red"
-    else
-      print_msg "✅ sing-box 已后台启动，日志: $AGSBX_DIR/sing-box.log" "green"
-    fi
+  sleep 2
+  if pgrep -f "sing-box run -c /root/agsbx/sb.json" > /dev/null; then
+    print_msg "✅ sing-box 已成功后台启动" "green"
   else
-    print_msg "错误: sing-box 可执行文件不存在: $SINGBOX_PATH" "red"
-    exit 1
+    print_msg "❌ sing-box 启动失败，请查看日志 /root/agsbx/sing-box.log" "red"
   fi
 
-  # 如果安装了 Argo
-  if [ "${INSTALL_CHOICE:-0}" = "2" ] || [ "${INSTALL_CHOICE:-0}" = "3" ]; then
-    if [ -n "${ARGO_TOKEN:-}" ]; then
-      cat > "$AGSBX_DIR/config.yml" <<EOF
-log-level: info
-ingress:
-  - hostname: ${ARGO_DOMAIN}
-    service: http://127.0.0.1:${ARGO_LOCAL_PORT}
-  - service: http_status:404
-EOF
-      nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
+  if [ -f "/root/agsbx/argo_token" ]; then
+    print_msg "启动 cloudflared (Argo)..." "yellow"
+    nohup /usr/local/bin/cloudflared tunnel run --token $(cat /root/agsbx/argo_token) \
+      > /root/agsbx/argo.log 2>&1 &
+
+    sleep 2
+    if pgrep -f "cloudflared tunnel run" > /dev/null; then
+      print_msg "✅ cloudflared 已成功后台启动" "green"
     else
-      nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
-      print_msg "启动临时 Argo 隧道，log: $AGSBX_DIR/argo.log" "yellow"
+      print_msg "❌ cloudflared 启动失败，请查看日志 /root/agsbx/argo.log" "red"
     fi
-    print_msg "cloudflared 已后台启动。" "green"
-  fi
-
-  # 尝试创建 systemd 服务以便长期运行
-  if [ -d "$SYSTEMD_DIR" ]; then
-    create_systemd_service "agsbx-singbox" "$SINGBOX_PATH run -c $CONFIG_PATH" "agsbx sing-box"
   fi
 }
 
