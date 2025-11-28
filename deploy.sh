@@ -211,48 +211,78 @@ create_config_and_save_vars() {
   save_var "UUID" "$UUID"
   print_msg "生成 UUID: $UUID" "yellow"
 
-  # create different templates
-  if [ "$INSTALL_CHOICE" = "1" ]; then
-    # TUIC only
+  # ----------------------------
+  # TUIC 配置（双栈）
+  # ----------------------------
+  local tuic_inbounds=""
+  if [ "$INSTALL_CHOICE" = "1" ] || [ "$INSTALL_CHOICE" = "3" ]; then
     create_tls_cert
+    tuic_inbounds=$(cat <<EOF
+    {
+      "type":"tuic",
+      "tag":"tuic-in-ipv4",
+      "listen":"0.0.0.0",
+      "listen_port":${TUIC_PORT},
+      "users":[{"uuid":"${UUID}","password":"${UUID}"}],
+      "congestion_control":"bbr",
+      "tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}
+    },
+    {
+      "type":"tuic",
+      "tag":"tuic-in-ipv6",
+      "listen":"::",
+      "listen_port":${TUIC_PORT},
+      "users":[{"uuid":"${UUID}","password":"${UUID}"}],
+      "congestion_control":"bbr",
+      "tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}
+    }
+EOF
+)
+  fi
+
+  # ----------------------------
+  # Argo 配置
+  # ----------------------------
+  local argo_inbound=""
+  if [ "$INSTALL_CHOICE" = "2" ] || [ "$INSTALL_CHOICE" = "3" ]; then
+    if [ "${ARGO_PROTOCOL:-vless}" = "vless" ]; then
+      argo_inbound=$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
+    else
+      argo_inbound=$(printf '{"type":"vmess","tag":"vmess-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
+    fi
+  fi
+
+  # ----------------------------
+  # 写入配置文件
+  # ----------------------------
+  mkdir -p "$AGSBX_DIR"
+  if [ "$INSTALL_CHOICE" = "1" ]; then
     cat > "$CONFIG_PATH" <<EOF
 {
   "log":{"level":"info","timestamp":true},
   "inbounds":[
-    {"type":"tuic","tag":"tuic-in","listen":"::","listen_port":${TUIC_PORT},"users":[{"uuid":"${UUID}","password":"${UUID}"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}}
+    $tuic_inbounds
   ],
   "outbounds":[{"type":"direct","tag":"direct"}]
 }
 EOF
   elif [ "$INSTALL_CHOICE" = "2" ]; then
-    # Argo only
-    local argo_inbound
-    if [ "${ARGO_PROTOCOL:-vless}" = "vless" ]; then
-      argo_inbound=$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
-    else
-      argo_inbound=$(printf '{"type":"vmess","tag":"vmess-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
-    fi
-    cat > "$CONFIG_PATH" <<EOF
-{
-  "log":{"level":"info","timestamp":true},
-  "inbounds":[ ${argo_inbound} ],
-  "outbounds":[{"type":"direct","tag":"direct"}]
-}
-EOF
-  elif [ "$INSTALL_CHOICE" = "3" ]; then
-    create_tls_cert
-    local argo_inbound
-    if [ "${ARGO_PROTOCOL:-vless}" = "vless" ]; then
-      argo_inbound=$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
-    else
-      argo_inbound=$(printf '{"type":"vmess","tag":"vmess-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
-    fi
     cat > "$CONFIG_PATH" <<EOF
 {
   "log":{"level":"info","timestamp":true},
   "inbounds":[
-    {"type":"tuic","tag":"tuic-in","listen":"::","listen_port":${TUIC_PORT},"users":[{"uuid":"${UUID}","password":"${UUID}"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}},
-    ${argo_inbound}
+    $argo_inbound
+  ],
+  "outbounds":[{"type":"direct","tag":"direct"}]
+}
+EOF
+  elif [ "$INSTALL_CHOICE" = "3" ]; then
+    cat > "$CONFIG_PATH" <<EOF
+{
+  "log":{"level":"info","timestamp":true},
+  "inbounds":[
+    $tuic_inbounds,
+    $argo_inbound
   ],
   "outbounds":[{"type":"direct","tag":"direct"}]
 }
@@ -260,7 +290,10 @@ EOF
   fi
 
   print_msg "配置文件已写入: $CONFIG_PATH" "green"
-  # save other variables
+
+  # ----------------------------
+  # 保存变量
+  # ----------------------------
   save_var "INSTALL_CHOICE" "$INSTALL_CHOICE"
   [ -n "${TUIC_PORT:-}" ] && save_var "TUIC_PORT" "$TUIC_PORT"
   [ -n "${ARGO_PROTOCOL:-}" ] && save_var "ARGO_PROTOCOL" "$ARGO_PROTOCOL"
@@ -268,6 +301,7 @@ EOF
   [ -n "${ARGO_TOKEN:-}" ] && save_var "ARGO_TOKEN" "$ARGO_TOKEN"
   [ -n "${ARGO_DOMAIN:-}" ] && save_var "ARGO_DOMAIN" "$ARGO_DOMAIN"
 }
+
 
 # ----------------------------
 # systemd unit helpers (optional)
