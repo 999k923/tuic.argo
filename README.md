@@ -46,4 +46,17 @@ curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 ```
 脚本会请求您输入 y 确认，以防止误操作。
 
-现在您拥有了所有需要用到的命令。祝您使用愉快！
+错误提示：openssl: command not found解决办法：
+方法 1：安装 OpenSSL
+Debian/Ubuntu：
+```bash
+apt update && apt install -y openssl
+```
+Alpine（如果是 apk 系统）：
+```bash
+apk add --no-cache openssl
+```
+CentOS/RHEL：
+```bash
+yum install -y openssl
+```
