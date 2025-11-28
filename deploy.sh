@@ -371,13 +371,16 @@ do_start() {
 
 do_stop() {
   print_msg "--- 停止服务 ---" "blue"
-  pkill -f "$SINGBOX_PATH" 2>/dev/null || true
-  pkill -f "$CLOUDFLARED_PATH" 2>/dev/null || true
-  if command -v systemctl >/dev/null 2>&1 && [ -d "$SYSTEMD_DIR" ]; then
-    systemctl stop agsbx-singbox.service 2>/dev/null || true
-  fi
+
+  # 只杀死通过本脚本启动的 sing-box，而不是所有 sing-box
+  pkill -f "sing-box run -c /root/agsbx/sb.json" 2>/dev/null || true
+  
+  # 只杀死 cloudflared tunnel run
+  pkill -f "cloudflared tunnel run" 2>/dev/null || true
+
   print_msg "已停止 sing-box 和 cloudflared。" "green"
 }
+
 
 do_restart() {
   print_msg "--- 重启服务 ---" "blue"
