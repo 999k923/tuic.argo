@@ -268,9 +268,9 @@ do_list() {
     if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
         tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
         print_msg "--- TUIC IPv4 ---" yellow
-        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-${hostname}"
+        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-ipv4-${hostname}"
         print_msg "--- TUIC IPv6 ---" yellow
-        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-${hostname}"
+        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
     fi
 
     if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
