@@ -2,7 +2,7 @@
 
 # ======================================================================
 # All-in-One TUIC & VLESS/VMess+Argo 管理脚本
-# 支持交互式安装、IPv4/IPv6 自动检测、节点备注带 Emoji+国家+IP类型
+# 支持交互式安装、IPv4/IPv6 自动检测
 # ======================================================================
 
 # --- 颜色 ---
@@ -71,12 +71,16 @@ get_server_ip() {
 }
 
 get_server_ipv6() {
+    # 手动指定优先
     [ -n "$SERVER_IPV6" ] && echo "$SERVER_IPV6" && return
+
     local iface ipv6
     for iface in $(ls /sys/class/net/ | grep -v lo); do
         ipv6=$(ip -6 addr show dev "$iface" | grep inet6 | grep -v '::1' | grep -v 'fe80' | awk '{print $2}' | cut -d/ -f1 | head -n1)
         [ -n "$ipv6" ] && echo "$ipv6" && return
     done
+
+    # 兜底：NAT IPv6 出口
     if command -v curl >/dev/null 2>&1; then
         ipv6=$(curl -6 -s https://icanhazip.com)
     else
@@ -88,7 +92,7 @@ get_server_ipv6() {
 # --- 核心安装 ---
 do_install() {
     print_msg "--- 节点安装向导 ---" blue
-    print_msg "请选择您要安装的类型:" yellow
+    print_msg "请选择您要安装的节点类型:" yellow
     print_msg "  1) 仅安装 TUIC"
     print_msg "  2) 仅安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 同时安装 TUIC 和 Argo 隧道"
@@ -97,25 +101,30 @@ do_install() {
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
 
-    [[ "$INSTALL_CHOICE" =~ ^[1-3]$ ]] || { print_msg "无效选项，安装已取消。" red; exit 1; }
-    echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
+    # --- 交互式配置 ---
+    if [[ "$INSTALL_CHOICE" =~ ^[1-3]$ ]]; then
+        echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
+    else
+        print_msg "无效选项，安装已取消。" red
+        exit 1
+    fi
 
     # TUIC 配置
-    if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
-        read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (默认 443): ${C_NC}")" TUIC_PORT
+    if [ "$INSTALL_CHOICE" = "1" ] || [ "$INSTALL_CHOICE" = "3" ]; then
+        read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (回车使用默认 443): ${C_NC}")" TUIC_PORT
         TUIC_PORT=${TUIC_PORT:-443}
         echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
     fi
 
     # Argo 配置
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
-        read -rp "$(printf "${C_GREEN}Argo 隧道协议 [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
+    if [ "$INSTALL_CHOICE" = "2" ] || [ "$INSTALL_CHOICE" = "3" ]; then
+        read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
         if [ "$ARGO_PROTOCOL_CHOICE" = "1" ]; then
             ARGO_PROTOCOL='vless'
-            read -rp "$(printf "${C_GREEN}请输入本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+            read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
         else
             ARGO_PROTOCOL='vmess'
-            read -rp "$(printf "${C_GREEN}请输入本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+            read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
         fi
         ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
         read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
@@ -126,13 +135,13 @@ do_install() {
         echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
     fi
 
-    # 可选手动指定 IPv6
-    read -rp "$(printf "${C_GREEN}如果是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
+    # 手动指定 IPv6（可选）
+    read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
     [ -n "$SERVER_IPV6" ] && echo "SERVER_IPV6='${SERVER_IPV6}'" >> "$VARS_PATH"
 
     load_variables
 
-    print_msg "--- 准备依赖 ---" blue
+    print_msg "\n--- 准备依赖 ---" blue
     cpu_arch=$(get_cpu_arch)
 
     # 下载 sing-box
@@ -152,8 +161,11 @@ do_install() {
     fi
 
     # TLS 证书
-    if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
-        command -v openssl >/dev/null 2>&1 || { print_msg "请安装 openssl" red; exit 1; }
+    if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" ]]; then
+        if ! command -v openssl >/dev/null 2>&1; then
+            print_msg "⚠️ openssl 未安装，请先安装 openssl" red
+            exit 1
+        fi
         openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
         openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
     fi
@@ -163,12 +175,12 @@ do_install() {
     echo "UUID='${UUID}'" >> "$VARS_PATH"
     print_msg "生成 UUID: $UUID" yellow
 
-    # 生成配置
+    # 生成 sing-box 配置
     do_generate_config
 
     # 启动
     do_start
-    print_msg "--- 安装完成，节点信息 ---" blue
+    print_msg "\n--- 安装完成，获取节点信息 ---" blue
     do_list
 }
 
@@ -183,7 +195,7 @@ do_generate_config() {
         fi
     fi
 
-    # 生成配置
+    # 根据选择生成配置
     if [ "$INSTALL_CHOICE" = "1" ]; then
         cat > "$CONFIG_PATH" <<EOF
 {
@@ -246,41 +258,33 @@ do_stop() {
     print_msg "服务已停止" green
 }
 
-# --- 节点列表，带 Emoji + 协议 + 国家 + IP类型 ---
 do_list() {
-    load_variables || { print_msg "请先安装" red; return; }
+    load_variables || { print_msg "请先安装节点" red; return; }
 
     server_ip=$(get_server_ip)
     server_ipv6=$(get_server_ipv6)
     hostname=$(hostname)
 
-    get_country() {
-        local ip="$1"
-        curl -s "https://ipapi.co/${ip}/country/" 2>/dev/null || echo "🌍"
-    }
-
-    country4=$(get_country "$server_ip")
-    country6=$(get_country "$server_ipv6")
-
-    # TUIC
     if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
         tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
-        print_msg "--- TUIC ---" yellow
-        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#🌐 TUIC ${country4} IPv4"
-        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#🌐 TUIC ${country6} IPv6"
+        print_msg "--- TUIC IPv4 ---" yellow
+        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-${hostname}"
+        print_msg "--- TUIC IPv6 ---" yellow
+        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-${hostname}"
     fi
 
-    # Argo
     if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
+        current_argo_domain="$ARGO_DOMAIN"
         [ -z "$ARGO_TOKEN" ] && print_msg "等待临时 Argo 域名..." yellow
+
         if [ "$ARGO_PROTOCOL" = "vless" ]; then
             echo "--- VLESS + Argo (TLS) ---" yellow
-            echo "vless://${UUID}@${ARGO_DOMAIN}:443?encryption=none&security=tls&sni=${ARGO_DOMAIN}&fp=chrome&type=ws&host=${ARGO_DOMAIN}&path=%2f${UUID}-vl#⛓️ VLESS ${country4} IPv4"
+            echo "vless://${UUID}@${current_argo_domain}:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
         else
-            vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$ARGO_DOMAIN" "$UUID" "$ARGO_DOMAIN" "$UUID" "$ARGO_DOMAIN")
+            vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$current_argo_domain" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
             vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
             echo "--- VMess + Argo (TLS) ---" yellow
-            echo "vmess://${vmess_base64}#⛓️ VMess ${country4} IPv4"
+            echo "vmess://${vmess_base64}"
         fi
     fi
 }
