@@ -338,36 +338,42 @@ EOF
 # 服务控制
 # ----------------------------
 do_start() {
-  print_msg "--- 启动服务 ---" "cyan"
+    print_msg "--- 启动服务 ---" cyan
 
-  do_stop
-  sleep 1
+    # 停止已有进程
+    do_stop
 
-  print_msg "启动 sing-box..." "yellow"
-  nohup /root/agsbx/sing-box run -c /root/agsbx/sb.json \
-    > /root/agsbx/sing-box.log 2>&1 &
+    # 启动 sing-box
+    print_msg "启动 sing-box..." green
+    nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" \
+        > /root/agsbx/sing-box.log 2>&1 &
 
-  sleep 2
-  if pgrep -f "sing-box run -c /root/agsbx/sb.json" > /dev/null; then
-    print_msg "✅ sing-box 已成功后台启动" "green"
-  else
-    print_msg "❌ sing-box 启动失败，请查看日志 /root/agsbx/sing-box.log" "red"
-  fi
+    sleep 1
 
-  if [ -f "/root/agsbx/argo_token" ]; then
-    print_msg "启动 cloudflared (Argo)..." "yellow"
-    nohup /usr/local/bin/cloudflared tunnel run --token $(cat /root/agsbx/argo_token) \
-      > /root/agsbx/argo.log 2>&1 &
-
-    sleep 2
-    if pgrep -f "cloudflared tunnel run" > /dev/null; then
-      print_msg "✅ cloudflared 已成功后台启动" "green"
+    # 检查 sing-box 是否启动成功
+    if pgrep -f "sing-box run -c $CONFIG_PATH" >/dev/null 2>&1; then
+        print_msg "✅ sing-box 已成功后台启动" green
     else
-      print_msg "❌ cloudflared 启动失败，请查看日志 /root/agsbx/argo.log" "red"
+        print_msg "⚠ sing-box 启动失败，请查看日志 /root/agsbx/sing-box.log" red
+        exit 1
     fi
-  fi
-}
 
+    # 如果存在 cloudflared 配置，则启动 Argo
+    if [[ -f "$VARS_PATH" ]]; then
+        print_msg "启动 Argo Tunnel..." green
+        nohup "$CLOUDFLARED_PATH" tunnel run \
+            --token "$(grep ARGO_TOKEN "$VARS_PATH" | cut -d= -f2)" \
+            > /root/agsbx/cloudflared.log 2>&1 &
+
+        sleep 1
+
+        if pgrep -f "cloudflared tunnel run" >/dev/null 2>&1; then
+            print_msg "🌐 Argo Tunnel 已启动" green
+        else
+            print_msg "⚠ Argo 启动失败，请查看日志 /root/agsbx/cloudflared.log" red
+        fi
+    fi
+}
 
 
 do_stop() {
