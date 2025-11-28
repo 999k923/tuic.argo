@@ -339,14 +339,34 @@ EOF
 # ----------------------------
 do_start() {
   print_msg "--- 启动服务 ---" "blue"
-  if ! load_variables; then print_msg "错误: 未找到变量文件，请先安装。" "red"; exit 1; fi
+  if ! load_variables; then
+    print_msg "错误: 未找到变量文件，请先安装。" "red"
+    exit 1
+  fi
 
-  # 停止已在运行的进程以防守护冲突
+  # 先停止已有进程，避免端口冲突
   do_stop || true
+  sleep 1
 
-  nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
-  print_msg "sing-box 已后台启动，日志: $AGSBX_DIR/sing-box.log" "green"
+  # 确保使用完整路径
+  local SINGBOX_CMD="$SINGBOX_PATH run -c $CONFIG_PATH"
+  local CLOUDFLARED_CMD="$CLOUDFLARED_PATH"
 
+  # 启动 sing-box
+  if [ -x "$SINGBOX_PATH" ]; then
+    nohup $SINGBOX_CMD > "$AGSBX_DIR/sing-box.log" 2>&1 &
+    sleep 1
+    if ! ss -tulnp | grep -q "$TUIC_PORT"; then
+      print_msg "⚠ sing-box 启动失败或端口未监听，请查看日志: $AGSBX_DIR/sing-box.log" "red"
+    else
+      print_msg "✅ sing-box 已后台启动，日志: $AGSBX_DIR/sing-box.log" "green"
+    fi
+  else
+    print_msg "错误: sing-box 可执行文件不存在: $SINGBOX_PATH" "red"
+    exit 1
+  fi
+
+  # 如果安装了 Argo
   if [ "${INSTALL_CHOICE:-0}" = "2" ] || [ "${INSTALL_CHOICE:-0}" = "3" ]; then
     if [ -n "${ARGO_TOKEN:-}" ]; then
       cat > "$AGSBX_DIR/config.yml" <<EOF
@@ -364,11 +384,12 @@ EOF
     print_msg "cloudflared 已后台启动。" "green"
   fi
 
-  # 尝试创建 systemd 服务以便长期运行（如果可用）
+  # 尝试创建 systemd 服务以便长期运行
   if [ -d "$SYSTEMD_DIR" ]; then
     create_systemd_service "agsbx-singbox" "$SINGBOX_PATH run -c $CONFIG_PATH" "agsbx sing-box"
   fi
 }
+
 
 do_stop() {
   print_msg "--- 停止服务 ---" "blue"
