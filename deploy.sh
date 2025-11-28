@@ -204,7 +204,6 @@ create_tls_cert() {
 }
 
 create_config_and_save_vars() {
-  # assumes INSTALL_CHOICE, TUIC_PORT, ARGO_PROTOCOL, ARGO_LOCAL_PORT, ARGO_TOKEN, ARGO_DOMAIN variables are set
   mkdir -p "$AGSBX_DIR"
   local UUID
   UUID=$(generate_uuid)
@@ -212,7 +211,20 @@ create_config_and_save_vars() {
   print_msg "生成 UUID: $UUID" "yellow"
 
   # ----------------------------
-  # TUIC 配置（双栈）
+  # 检测 VPS 是否有 IPv6
+  # ----------------------------
+  local LISTEN_ADDR="0.0.0.0"
+  if command -v ip >/dev/null 2>&1; then
+    if ip -6 addr show scope global | grep -q inet6; then
+      LISTEN_ADDR="::"
+      print_msg "检测到 IPv6，TUIC 将监听 IPv6 (dual-stack 支持 IPv4)" "green"
+    else
+      print_msg "未检测到 IPv6，TUIC 仅监听 IPv4" "yellow"
+    fi
+  fi
+
+  # ----------------------------
+  # TUIC 配置
   # ----------------------------
   local tuic_inbounds=""
   if [ "$INSTALL_CHOICE" = "1" ] || [ "$INSTALL_CHOICE" = "3" ]; then
@@ -220,17 +232,8 @@ create_config_and_save_vars() {
     tuic_inbounds=$(cat <<EOF
     {
       "type":"tuic",
-      "tag":"tuic-in-ipv4",
-      "listen":"0.0.0.0",
-      "listen_port":${TUIC_PORT},
-      "users":[{"uuid":"${UUID}","password":"${UUID}"}],
-      "congestion_control":"bbr",
-      "tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}
-    },
-    {
-      "type":"tuic",
-      "tag":"tuic-in-ipv6",
-      "listen":"::",
+      "tag":"tuic-in",
+      "listen":"${LISTEN_ADDR}",
       "listen_port":${TUIC_PORT},
       "users":[{"uuid":"${UUID}","password":"${UUID}"}],
       "congestion_control":"bbr",
@@ -255,7 +258,6 @@ EOF
   # ----------------------------
   # 写入配置文件
   # ----------------------------
-  mkdir -p "$AGSBX_DIR"
   if [ "$INSTALL_CHOICE" = "1" ]; then
     cat > "$CONFIG_PATH" <<EOF
 {
@@ -301,6 +303,7 @@ EOF
   [ -n "${ARGO_TOKEN:-}" ] && save_var "ARGO_TOKEN" "$ARGO_TOKEN"
   [ -n "${ARGO_DOMAIN:-}" ] && save_var "ARGO_DOMAIN" "$ARGO_DOMAIN"
 }
+
 
 
 # ----------------------------
