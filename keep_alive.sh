@@ -1,4 +1,4 @@
-cat > /root/agsbx/keep_alive.sh << 'EOF'
+cat > ~/agsbx/keep_alive.sh << 'EOF'
 #!/bin/bash
 
 AGSBX_DIR="/root/agsbx"
@@ -7,13 +7,10 @@ CLOUDFLARED_PATH="$AGSBX_DIR/cloudflared"
 CONFIG_PATH="$AGSBX_DIR/sb.json"
 VARS_PATH="$AGSBX_DIR/variables.conf"
 LOG_FILE="$AGSBX_DIR/keep_alive.log"
-LAST_RESTART_FILE="$AGSBX_DIR/last_restart"
 
 # 加载变量
 if [ -f "$VARS_PATH" ]; then
     source "$VARS_PATH"
-else
-    echo "[$(date '+%F %T')] ⚠ 未找到 variables.conf" >> "$LOG_FILE"
 fi
 
 log(){
@@ -27,7 +24,7 @@ check_singbox(){
     fi
 
     if [ ! -f "$CONFIG_PATH" ]; then
-        log "❌ sb.json 不存在: $CONFIG_PATH"
+        log "❌ 配置文件不存在: $CONFIG_PATH"
         return
     fi
 
@@ -40,7 +37,7 @@ check_singbox(){
 
 check_cloudflared(){
     if [ ! -f "$CLOUDFLARED_PATH" ]; then
-        log "❌ cloudflared 不存在: $CLOUDFLARED_PATH"
+        log "❌ cloudflared 不存在"
         return
     fi
 
@@ -53,6 +50,7 @@ check_cloudflared(){
 
 daily_restart(){
     TODAY=$(date +%Y-%m-%d)
+    LAST_RESTART_FILE="$AGSBX_DIR/last_restart"
 
     if [ -f "$LAST_RESTART_FILE" ]; then
         LAST=$(cat "$LAST_RESTART_FILE")
@@ -61,7 +59,7 @@ daily_restart(){
     fi
 
     if [ "$TODAY" != "$LAST" ]; then
-        log "⏳ 每日重启 sing-box / cloudflared"
+        log "⏳ 到达每日重启时间，重启 sing-box / cloudflared"
         pkill -f "$SINGBOX_PATH"
         pkill -f "$CLOUDFLARED_PATH"
         echo "$TODAY" > "$LAST_RESTART_FILE"
@@ -77,4 +75,5 @@ while true; do
     daily_restart
     sleep 10
 done &
+
 EOF
