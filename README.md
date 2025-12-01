@@ -63,10 +63,13 @@ CentOS/RHEL：
 ```bash
 yum install -y openssl
 ```
-保活脚本：
+保活命令：
 ```bash
-mkdir -p ~/agsbx && \
-curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh -o ~/agsbx/deploy.sh && \
-chmod +x ~/agsbx/deploy.sh && \
-~/agsbx/deploy.sh
+curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh
+```
+```bash
+bash ~/agsbx/keep_alive.sh
+```
+```bash
+bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
 ```
