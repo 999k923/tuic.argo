@@ -6,8 +6,9 @@ CLOUDFLARED_PATH="$AGSBX_DIR/cloudflared"
 CONFIG_PATH="$AGSBX_DIR/sb.json"
 VARS_PATH="$AGSBX_DIR/variables.conf"
 LOG_FILE="$AGSBX_DIR/keep_alive.log"
+CONFIG_YML="$AGSBX_DIR/config.yml"
 
-# 加载变量
+# --- 加载变量 ---
 if [ -f "$VARS_PATH" ]; then
     source "$VARS_PATH"
 fi
@@ -16,77 +17,59 @@ log(){
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
-check_singbox(){
-    if [ ! -f "$SINGBOX_PATH" ]; then
-        log "❌ sing-box 不存在: $SINGBOX_PATH"
-        return
-    fi
-
-    if [ ! -f "$CONFIG_PATH" ]; then
-        log "❌ 配置文件不存在: $CONFIG_PATH"
-        return
-    fi
-
+# --- 启动 sing-box ---
+start_singbox(){
     if ! pgrep -f "$SINGBOX_PATH" >/dev/null; then
-        log "🔄 sing-box 不在运行，启动中..."
+        log "启动 sing-box..."
         nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
 
-check_cloudflared(){
-    if [ ! -f "$CLOUDFLARED_PATH" ]; then
-        log "❌ cloudflared 不存在"
-        return
-    fi
-
-    # 自动获取 tunnel 名称
-    TUNNEL_NAME=""
-    TUNNELS_JSON="$HOME/.cloudflared/tunnels.json"
-    if [ -f "$TUNNELS_JSON" ]; then
-        if command -v jq >/dev/null 2>&1; then
-            TUNNEL_NAME=$(jq -r '.[0].Name' "$TUNNELS_JSON")
-        else
-            log "⚠️ 未安装 jq，无法自动获取 tunnel 名称，请手动指定"
-        fi
-    fi
-
-    if [ -z "$TUNNEL_NAME" ]; then
-        log "⚠️ 未找到可用 tunnel 名称，cloudflared 无法启动"
+# --- 启动 cloudflared（token 模式） ---
+start_cloudflared(){
+    if [ -z "$ARGO_TOKEN" ]; then
+        log "❌ ARGO_TOKEN 未设置，无法启动 cloudflared"
         return
     fi
 
     if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-        log "🔄 cloudflared 不在运行，启动中..."
-        nohup "$CLOUDFLARED_PATH" tunnel run "$TUNNEL_NAME" >> "$LOG_FILE" 2>&1 &
+        log "启动 cloudflared (token 模式)..."
+
+        cat > "$CONFIG_YML" <<EOF
+log-level: info
+ingress:
+  - hostname: ${ARGO_DOMAIN}
+    service: http://127.0.0.1:${ARGO_LOCAL_PORT}
+  - service: http_status:404
+EOF
+
+        nohup "$CLOUDFLARED_PATH" tunnel --config "$CONFIG_YML" run --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
 
+# --- 每日重启一次 ---
 daily_restart(){
     TODAY=$(date +%Y-%m-%d)
-    LAST_RESTART_FILE="$AGSBX_DIR/last_restart"
+    LAST_FILE="$AGSBX_DIR/last_restart"
 
-    if [ -f "$LAST_RESTART_FILE" ]; then
-        LAST=$(cat "$LAST_RESTART_FILE")
-    else
-        LAST="none"
-    fi
+    [[ -f "$LAST_FILE" ]] && LAST=$(cat "$LAST_FILE") || LAST="none"
 
     if [ "$TODAY" != "$LAST" ]; then
-        log "⏳ 到达每日重启时间，重启 sing-box / cloudflared"
+        log "每日重启 sing-box 和 cloudflared"
         pkill -f "$SINGBOX_PATH"
         pkill -f "$CLOUDFLARED_PATH"
-        echo "$TODAY" > "$LAST_RESTART_FILE"
+        echo "$TODAY" > "$LAST_FILE"
         sleep 3
     fi
 }
 
-log "🚀 keep_alive 启动"
+log "keep_alive 启动完成"
 
 while true; do
-    check_singbox
-    check_cloudflared
+    start_singbox
+    start_cloudflared
     daily_restart
     sleep 10
-done &
+done
