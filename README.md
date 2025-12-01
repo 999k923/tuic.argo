@@ -3,7 +3,8 @@
 重点：导入节点后IP地址和优选ip地址要手动更换一下，默认的地址可能是错误的。
 
 
-1. 安装命令
+安装步骤
+==
 这是在您的服务器上执行一键安装的命令。它会从您的 GitHub 链接下载并运行脚本，然后引导您完成交互式安装过程。
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh ) install
@@ -63,7 +64,9 @@ CentOS/RHEL：
 ```bash
 yum install -y openssl
 ```
+
 保活命令
+==
 第一步：
 ```bash
 curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh
@@ -77,9 +80,7 @@ cd /root/agsbx/
 nano nano variables.conf
 ```
 
-第三步。
-
-
+第三步:
 ```bash
 nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```
