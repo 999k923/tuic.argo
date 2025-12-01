@@ -1,3 +1,4 @@
+cat > ~/agsbx/keep_alive.sh << 'EOF'
 #!/bin/bash
 
 AGSBX_DIR="/root/agsbx"
@@ -8,7 +9,9 @@ VARS_PATH="$AGSBX_DIR/variables.conf"
 LOG_FILE="$AGSBX_DIR/keep_alive.log"
 
 # 加载变量
-[ -f "$VARS_PATH" ] && source "$VARS_PATH"
+if [ -f "$VARS_PATH" ]; then
+    source "$VARS_PATH"
+fi
 
 log(){
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
@@ -19,10 +22,12 @@ check_singbox(){
         log "❌ sing-box 不存在: $SINGBOX_PATH"
         return
     fi
+
     if [ ! -f "$CONFIG_PATH" ]; then
         log "❌ 配置文件不存在: $CONFIG_PATH"
         return
     fi
+
     if ! pgrep -f "$SINGBOX_PATH" >/dev/null; then
         log "🔄 sing-box 不在运行，启动中..."
         nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
@@ -35,10 +40,30 @@ check_cloudflared(){
         log "❌ cloudflared 不存在"
         return
     fi
-    if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-        log "🔄 cloudflared 不在运行，启动中..."
-        nohup "$CLOUDFLARED_PATH" tunnel run >> "$LOG_FILE" 2>&1 &
-        sleep 2
+
+    # 优先使用 token 启动
+    if [ -n "$ARGO_TOKEN" ]; then
+        if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
+            log "🔄 cloudflared 不在运行，使用 token 启动..."
+            nohup "$CLOUDFLARED_PATH" tunnel --token "$ARGO_TOKEN" run >> "$LOG_FILE" 2>&1 &
+            sleep 2
+        fi
+    else
+        # 自动读取第一个 tunnel 名称
+        if [ -f ~/.cloudflared/tunnels.json ]; then
+            TUNNEL_NAME=$(jq -r '.[0].name' ~/.cloudflared/tunnels.json)
+            if [ -z "$TUNNEL_NAME" ]; then
+                log "❌ 未找到 tunnel 名称，请先创建 tunnel 或使用 ARGO_TOKEN"
+                return
+            fi
+            if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
+                log "🔄 cloudflared 不在运行，使用 tunnel 名称 $TUNNEL_NAME 启动..."
+                nohup "$CLOUDFLARED_PATH" tunnel run "$TUNNEL_NAME" >> "$LOG_FILE" 2>&1 &
+                sleep 2
+            fi
+        else
+            log "❌ 找不到 tunnels.json，也没有 ARGO_TOKEN"
+        fi
     fi
 }
 
@@ -63,17 +88,13 @@ daily_restart(){
 
 log "🚀 keep_alive 启动"
 
-# 主循环
 while true; do
     check_singbox
     check_cloudflared
     daily_restart
     sleep 10
+done &
 
-    # 自我保活：如果父进程是 init/systemd，说明被外部杀掉，自动重启自己
-    if [ "$PPID" -eq 1 ]; then
-        log "⚠️ keep_alive.sh 被杀，自动重启自己"
-        nohup "$0" >> "$LOG_FILE" 2>&1 &
-        exit 0
-    fi
-done
+EOF
+
+chmod +x ~/agsbx/keep_alive.sh
