@@ -75,6 +75,9 @@ curl -o /root/agsbx/variables.conf -L https://raw.githubusercontent.com/999k923/
 cd /root/agsbx/
 nano nano variables.conf
 ```
+只有TUIC，就直接运行下面的代码，上面的填写token略过。
+
+
 ```bash
 nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```
