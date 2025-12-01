@@ -67,6 +67,14 @@ yum install -y openssl
 ```bash
 curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh
 ```
+如果要保活cloudflare argo，还需要手动填写token信息，如果只安装了tuic就略过。
+```bash
+curl -o /root/agsbx/variables.conf -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/variables.conf
+```
+```bash
+cd /root/agsbx/
+nano nano variables.conf
+```
 ```bash
 nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```
