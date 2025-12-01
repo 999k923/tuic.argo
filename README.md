@@ -77,7 +77,8 @@ curl -o /root/agsbx/variables.conf -L https://raw.githubusercontent.com/999k923/
 ```
 ```bash
 cd /root/agsbx/
-nano nano variables.conf
+nano variables.conf
+cd ~
 ```
 
 第三步:
