@@ -1,4 +1,3 @@
-cat > ~/agsbx/keep_alive.sh << 'EOF'
 #!/bin/bash
 
 AGSBX_DIR="/root/agsbx"
@@ -41,29 +40,24 @@ check_cloudflared(){
         return
     fi
 
-    # 优先使用 token 启动
-    if [ -n "$ARGO_TOKEN" ]; then
-        if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-            log "🔄 cloudflared 不在运行，使用 token 启动..."
-            nohup "$CLOUDFLARED_PATH" tunnel --token "$ARGO_TOKEN" run >> "$LOG_FILE" 2>&1 &
-            sleep 2
-        fi
-    else
-        # 自动读取第一个 tunnel 名称
-        if [ -f ~/.cloudflared/tunnels.json ]; then
-            TUNNEL_NAME=$(jq -r '.[0].name' ~/.cloudflared/tunnels.json)
-            if [ -z "$TUNNEL_NAME" ]; then
-                log "❌ 未找到 tunnel 名称，请先创建 tunnel 或使用 ARGO_TOKEN"
-                return
-            fi
-            if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-                log "🔄 cloudflared 不在运行，使用 tunnel 名称 $TUNNEL_NAME 启动..."
+    if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
+        log "🔄 cloudflared 不在运行，启动中..."
+
+        # 如果有 ARGO_TOKEN
+        if [ -n "$ARGO_TOKEN" ]; then
+            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:12400" --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
+        # 如果有 tunnels.json
+        elif [ -f "$HOME/.cloudflared/tunnels.json" ]; then
+            TUNNEL_NAME=$(jq -r '.[0].Name' "$HOME/.cloudflared/tunnels.json")
+            if [ -n "$TUNNEL_NAME" ] && [ "$TUNNEL_NAME" != "null" ]; then
                 nohup "$CLOUDFLARED_PATH" tunnel run "$TUNNEL_NAME" >> "$LOG_FILE" 2>&1 &
-                sleep 2
+            else
+                log "❌ 未能获取 tunnel 名称"
             fi
         else
-            log "❌ 找不到 tunnels.json，也没有 ARGO_TOKEN"
+            log "❌ cloudflared 无法启动：缺少 ARGO_TOKEN 或 tunnels.json"
         fi
+        sleep 2
     fi
 }
 
@@ -94,7 +88,3 @@ while true; do
     daily_restart
     sleep 10
 done &
-
-EOF
-
-chmod +x ~/agsbx/keep_alive.sh
