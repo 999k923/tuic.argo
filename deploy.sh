@@ -173,10 +173,124 @@ do_install() {
     do_list
 }
 
-# ======================================================================
-# 其余原始函数 do_generate_config, do_start, do_stop, do_list, do_restart, do_uninstall, show_help
-# 全部原样保留 (同之前脚本)
-# ======================================================================
+do_generate_config() {
+    load_variables
+    local argo_inbound=""
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
+        if [ "$ARGO_PROTOCOL" = "vless" ]; then
+            argo_inbound=$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
+        else
+            argo_inbound=$(printf '{"type":"vmess","tag":"vmess-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
+        fi
+    fi
+
+    if [ "$INSTALL_CHOICE" = "1" ]; then
+        cat > "$CONFIG_PATH" <<EOF
+{
+  "log":{"level":"info","timestamp":true},
+  "inbounds":[{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":${TUIC_PORT},"users":[{"uuid":"${UUID}","password":"${UUID}"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}}],
+  "outbounds":[{"type":"direct","tag":"direct"}]
+}
+EOF
+    elif [ "$INSTALL_CHOICE" = "2" ]; then
+        cat > "$CONFIG_PATH" <<EOF
+{
+  "log":{"level":"info","timestamp":true},
+  "inbounds":[${argo_inbound}],
+  "outbounds":[{"type":"direct","tag":"direct"}]
+}
+EOF
+    elif [ "$INSTALL_CHOICE" = "3" ]; then
+        cat > "$CONFIG_PATH" <<EOF
+{
+  "log":{"level":"info","timestamp":true},
+  "inbounds":[
+    {"type":"tuic","tag":"tuic-in","listen":"::","listen_port":${TUIC_PORT},"users":[{"uuid":"${UUID}","password":"${UUID}"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"${CERT_PATH}","key_path":"${KEY_PATH}"}},
+    ${argo_inbound}
+  ],
+  "outbounds":[{"type":"direct","tag":"direct"}]
+}
+EOF
+    fi
+    print_msg "配置文件已生成: $CONFIG_PATH" green
+}
+
+do_start() {
+    load_variables
+    do_stop
+
+    nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
+
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
+        if [ -n "$ARGO_TOKEN" ]; then
+            cat > "$AGSBX_DIR/config.yml" <<EOF
+log-level: info
+ingress:
+  - hostname: ${ARGO_DOMAIN}
+    service: http://127.0.0.1:${ARGO_LOCAL_PORT}
+  - service: http_status:404
+EOF
+            nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
+        else
+            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
+        fi
+    fi
+
+    print_msg "服务已启动" green
+}
+
+do_stop() {
+    pkill -f "$SINGBOX_PATH"
+    pkill -f "$CLOUDFLARED_PATH"
+    print_msg "服务已停止" green
+}
+
+do_list() {
+    load_variables || { print_msg "请先安装节点" red; return; }
+
+    server_ip=$(get_server_ip)
+    server_ipv6=$(get_server_ipv6)
+    hostname=$(hostname)
+
+    if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
+        tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
+        print_msg "--- TUIC IPv4 ---" yellow
+        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-ipv4-${hostname}"
+        print_msg "--- TUIC IPv6 ---" yellow
+        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
+    fi
+
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
+        current_argo_domain="$ARGO_DOMAIN"
+        [ -z "$ARGO_TOKEN" ] && print_msg "等待临时 Argo 域名..." yellow
+
+        if [ "$ARGO_PROTOCOL" = "vless" ]; then
+            echo "--- VLESS + Argo (TLS) ---" yellow
+            echo "vless://${UUID}@${current_argo_domain}:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
+        else
+            vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$current_argo_domain" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
+            vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
+            echo "--- VMess + Argo (TLS) ---" yellow
+            echo "vmess://${vmess_base64}"
+        fi
+    fi
+}
+
+do_restart() { do_stop; sleep 1; do_start; }
+
+do_uninstall() {
+    read -rp "$(printf "${C_YELLOW}确认卸载？将删除所有文件 (y/n): ${C_NC}")" confirm
+    [ "$confirm" != "y" ] && print_msg "取消卸载" green && exit 0
+    do_stop
+    rm -rf "$AGSBX_DIR"
+    print_msg "卸载完成" green
+}
+
+show_help() {
+    print_msg "All-in-One TUIC & VLESS/VMess+Argo 管理脚本" blue
+    echo "用法: bash $0 [命令]"
+    echo "命令: install | list | start | stop | restart | uninstall | help"
+}
 
 # ======================================================================
 # 保活机制
@@ -236,7 +350,7 @@ EOF
         systemctl restart singbox
         print_msg "systemd 守护服务已创建并启动" green
     else
-        print_msg "未检测到 systemd，建议使用 screen 或 tmux 运行 watchdog" yellow
+        print_msg "未检测到 systemd，保活将依赖 watchdog.sh" yellow
     fi
 }
 
