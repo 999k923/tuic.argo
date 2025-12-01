@@ -69,7 +69,8 @@ yum install -y openssl
 ==
 第一步：
 ```bash
-curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh
+curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh && chmod +x /root/agsbx/keep_alive.sh
+
 ```
 第二步：如果要保活cloudflare argo，还需要手动填写token信息，如果只安装了tuic就略过第二步，直接运行第三步。
 ```bash
