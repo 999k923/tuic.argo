@@ -1,10 +1,7 @@
+cat > ~/agsbx/keep_alive.sh << 'EOF'
 #!/bin/bash
 
-# ======================================================================
-# TUIC & Argo 保活脚本
-# ======================================================================
-
-AGSBX_DIR="$HOME/agsbx"
+AGSBX_DIR="/root/agsbx"
 SINGBOX_PATH="$AGSBX_DIR/sing-box"
 CLOUDFLARED_PATH="$AGSBX_DIR/cloudflared"
 CONFIG_PATH="$AGSBX_DIR/sb.json"
@@ -12,47 +9,71 @@ VARS_PATH="$AGSBX_DIR/variables.conf"
 LOG_FILE="$AGSBX_DIR/keep_alive.log"
 
 # 加载变量
-[ -f "$VARS_PATH" ] && . "$VARS_PATH"
+if [ -f "$VARS_PATH" ]; then
+    source "$VARS_PATH"
+fi
 
-log() {
-    echo "[$(date '+%F %T')] $1" >> "$LOG_FILE"
+log(){
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
-# 检查并启动 sing-box
-check_singbox() {
-    if [ -f "$SINGBOX_PATH" ] && [ -f "$CONFIG_PATH" ]; then
-        if ! pgrep -f "$SINGBOX_PATH" >/dev/null 2>&1; then
-            nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$AGSBX_DIR/sing-box.log" 2>&1 &
-            log "sing-box 已启动"
-        fi
+check_singbox(){
+    if [ ! -f "$SINGBOX_PATH" ]; then
+        log "❌ sing-box 不存在: $SINGBOX_PATH"
+        return
+    fi
+
+    if [ ! -f "$CONFIG_PATH" ]; then
+        log "❌ 配置文件不存在: $CONFIG_PATH"
+        return
+    fi
+
+    if ! pgrep -f "$SINGBOX_PATH" >/dev/null; then
+        log "🔄 sing-box 不在运行，启动中..."
+        nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
+        sleep 2
     fi
 }
 
-# 检查并启动 cloudflared
-check_cloudflared() {
-    if [ -f "$CLOUDFLARED_PATH" ]; then
-        if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null 2>&1; then
-            if [ -n "$ARGO_TOKEN" ] && [ -n "$ARGO_DOMAIN" ]; then
-                cat > "$AGSBX_DIR/config.yml" <<EOF
-log-level: info
-ingress:
-  - hostname: ${ARGO_DOMAIN}
-    service: http://127.0.0.1:${ARGO_LOCAL_PORT}
-  - service: http_status:404
-EOF
-                nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" >> "$AGSBX_DIR/argo.log" 2>&1 &
-                log "cloudflared (Argo) 已启动"
-            else
-                nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" >> "$AGSBX_DIR/argo.log" 2>&1 &
-                log "cloudflared (临时 Argo) 已启动"
-            fi
-        fi
+check_cloudflared(){
+    if [ ! -f "$CLOUDFLARED_PATH" ]; then
+        log "❌ cloudflared 不存在"
+        return
+    fi
+
+    if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
+        log "🔄 cloudflared 不在运行，启动中..."
+        nohup "$CLOUDFLARED_PATH" tunnel run >> "$LOG_FILE" 2>&1 &
+        sleep 2
     fi
 }
 
-# 无限循环保活
+daily_restart(){
+    TODAY=$(date +%Y-%m-%d)
+    LAST_RESTART_FILE="$AGSBX_DIR/last_restart"
+
+    if [ -f "$LAST_RESTART_FILE" ]; then
+        LAST=$(cat "$LAST_RESTART_FILE")
+    else
+        LAST="none"
+    fi
+
+    if [ "$TODAY" != "$LAST" ]; then
+        log "⏳ 到达每日重启时间，重启 sing-box / cloudflared"
+        pkill -f "$SINGBOX_PATH"
+        pkill -f "$CLOUDFLARED_PATH"
+        echo "$TODAY" > "$LAST_RESTART_FILE"
+        sleep 3
+    fi
+}
+
+log "🚀 keep_alive 启动"
+
 while true; do
     check_singbox
     check_cloudflared
+    daily_restart
     sleep 10
-done
+done &
+
+EOF
