@@ -68,7 +68,7 @@ yum install -y openssl
 curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh
 ```
 ```bash
-bash ~/agsbx/keep_alive.sh
+nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
