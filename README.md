@@ -63,3 +63,10 @@ CentOS/RHEL：
 ```bash
 yum install -y openssl
 ```
+保活脚本：
+```bash
+mkdir -p ~/agsbx && \
+curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh -o ~/agsbx/deploy.sh && \
+chmod +x ~/agsbx/deploy.sh && \
+~/agsbx/deploy.sh
+```
