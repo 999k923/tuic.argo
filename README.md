@@ -63,11 +63,12 @@ CentOS/RHEL：
 ```bash
 yum install -y openssl
 ```
-保活命令：
+保活命令
+第一步：
 ```bash
 curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh
 ```
-如果要保活cloudflare argo，还需要手动填写token信息，如果只安装了tuic就略过。
+第二步：如果要保活cloudflare argo，还需要手动填写token信息，如果只安装了tuic就略过第二步，直接运行第三步。
 ```bash
 curl -o /root/agsbx/variables.conf -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/variables.conf
 ```
@@ -75,7 +76,8 @@ curl -o /root/agsbx/variables.conf -L https://raw.githubusercontent.com/999k923/
 cd /root/agsbx/
 nano nano variables.conf
 ```
-只有TUIC，就直接运行下面的代码，上面的填写token略过。
+
+第三步。
 
 
 ```bash
