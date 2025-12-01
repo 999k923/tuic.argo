@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ======================================================================
-# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 + systemd 守护保活
+# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 + 跨系统保活
 # ======================================================================
 
 # --- 颜色 ---
@@ -47,7 +47,11 @@ download_file() {
     local url="$1"
     local dest="$2"
     print_msg "正在下载 $(basename "$dest")..." yellow
-    curl -# -Lo "$dest" "$url" || wget -q --show-progress -O "$dest" "$url"
+    if command -v curl >/dev/null 2>&1; then
+        curl -# -Lo "$dest" "$url"
+    else
+        wget -q --show-progress -O "$dest" "$url"
+    fi
     [ $? -ne 0 ] && print_msg "下载失败: $url" red && exit 1
     chmod +x "$dest"
     print_msg "$(basename "$dest") 下载并设置权限成功。" green
@@ -57,7 +61,6 @@ load_variables() {
     [ -f "$VARS_PATH" ] && . "$VARS_PATH"
 }
 
-# --- 获取 IP ---
 get_server_ip() { curl -4 -s https://icanhazip.com || wget -4 -qO- https://icanhazip.com; }
 get_server_ipv6() {
     [ -n "$SERVER_IPV6" ] && echo "$SERVER_IPV6" && return
@@ -67,14 +70,17 @@ get_server_ipv6() {
 }
 
 # ======================================================================
-# ★★★ 新增：systemd 服务生成 ★★★
+# ★★★ systemd / watchdog 保活逻辑 ★★★
 # ======================================================================
 
-create_systemd_services() {
-    print_msg "正在创建 systemd 守护服务..." blue
+setup_watchdog() {
+    load_variables
+    # Ubuntu/Debian/CentOS with systemd
+    if command -v systemctl >/dev/null 2>&1; then
+        print_msg "检测到 systemd，创建 systemd 服务..." blue
 
-    # --- sing-box ---
-    cat > "$SYSTEMD_SINGBOX" <<EOF
+        # sing-box
+        cat > "$SYSTEMD_SINGBOX" <<EOF
 [Unit]
 Description=Sing-box Service
 After=network-online.target
@@ -91,8 +97,8 @@ LimitNOFILE=200000
 WantedBy=multi-user.target
 EOF
 
-    # --- Argo ---
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
+        # argo
+        if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
 cat > "$SYSTEMD_ARGO" <<EOF
 [Unit]
 Description=Cloudflared Argo Tunnel
@@ -109,14 +115,35 @@ LimitNOFILE=200000
 [Install]
 WantedBy=multi-user.target
 EOF
+        fi
+
+        systemctl daemon-reload
+        systemctl enable singbox >/dev/null 2>&1
+        [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && systemctl enable argo >/dev/null 2>&1
+        print_msg "systemd 服务已创建并设置开机自启" green
+    else
+        # Alpine / 无 systemd，使用后台 watchdog
+        print_msg "未检测到 systemd，使用后台 watchdog 保活..." blue
+
+        nohup bash -c "
+        while true; do
+            if ! pgrep -f '$SINGBOX_PATH' >/dev/null; then
+                $SINGBOX_PATH run -c $CONFIG_PATH >> $AGSBX_DIR/sing-box.log 2>&1 &
+            fi
+            if [[ '$INSTALL_CHOICE' =~ ^(2|3)$ ]]; then
+                if ! pgrep -f '$CLOUDFLARED_PATH' >/dev/null; then
+                    if [ -n '$ARGO_TOKEN' ]; then
+                        $CLOUDFLARED_PATH tunnel --config $AGSBX_DIR/config.yml run >> $AGSBX_DIR/argo.log 2>&1 &
+                    else
+                        $CLOUDFLARED_PATH tunnel --url http://127.0.0.1:$ARGO_LOCAL_PORT >> $AGSBX_DIR/argo.log 2>&1 &
+                    fi
+                fi
+            fi
+            sleep 5
+        done
+        " >/dev/null 2>&1 &
+        print_msg "watchdog 保活已启动" green
     fi
-
-    systemctl daemon-reload
-    systemctl enable singbox >/dev/null 2>&1
-
-    [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && systemctl enable argo >/dev/null 2>&1
-
-    print_msg "systemd 服务已创建并设置为开机自启！" green
 }
 
 # ======================================================================
@@ -133,7 +160,6 @@ do_install() {
 
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
-
     echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
 
     # TUIC
@@ -168,12 +194,12 @@ do_install() {
     arch=$(get_cpu_arch)
 
     if [ ! -f "$SINGBOX_PATH" ]; then
-        url="https://github.com/SagerNet/sing-box/releases/latest/download/sing-box-linux-$arch.tar.gz"
+        url="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-$arch.tar.gz"
         tarball="$AGSBX_DIR/sb.tar.gz"
         download_file "$url" "$tarball"
-        tar -xf "$tarball" -C "$AGSBX_DIR"
-        mv "$AGSBX_DIR"/sing-box*/sing-box "$SINGBOX_PATH"
-        rm -rf "$tarball" "$AGSBX_DIR"/sing-box*
+        tar -xzf "$tarball" -C "$AGSBX_DIR"
+        mv "$AGSBX_DIR"/sing-box-1.9.0-linux-$arch/sing-box "$SINGBOX_PATH"
+        rm -rf "$tarball" "$AGSBX_DIR"/sing-box-1.9.0-linux-$arch
     fi
 
     if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && [ ! -f "$CLOUDFLARED_PATH" ]; then
@@ -191,10 +217,7 @@ do_install() {
     echo "UUID='$UUID'" >> "$VARS_PATH"
 
     do_generate_config
-    create_systemd_services
-
-    systemctl restart singbox
-    [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && systemctl restart argo
+    setup_watchdog
 
     print_msg "安装完成！" green
     do_list
@@ -234,7 +257,6 @@ EOF
         fi
     fi
 
-    # 配置写入
     if [ "$INSTALL_CHOICE" = "1" ]; then
 cat > "$CONFIG_PATH" <<EOF
 {
@@ -288,25 +310,45 @@ EOF
 # ======================================================================
 # ★★★ 控制 ★★★
 # ======================================================================
-do_start() { systemctl restart singbox; [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && systemctl restart argo; }
-do_stop() { systemctl stop singbox; systemctl stop argo; }
-do_restart() { do_start; }
+do_start() { 
+    load_variables
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl restart singbox
+        [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && systemctl restart argo
+    else
+        # 无 systemd, watchdog 已经后台运行
+        print_msg "watchdog 保活已运行，无需 start" yellow
+    fi
+}
+do_stop() {
+    load_variables
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop singbox
+        [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && systemctl stop argo
+    else
+        pkill -f "$SINGBOX_PATH"
+        pkill -f "$CLOUDFLARED_PATH"
+        print_msg "进程已停止" green
+    fi
+}
+do_restart() { do_stop; sleep 1; do_start; }
 
 do_uninstall() {
-    echo -n "确认卸载？ (y/n): "
-    read confirm
-    [[ "$confirm" != "y" ]] && exit 0
+    read -rp "确认卸载？(y/n): " confirm
+    [ "$confirm" != "y" ] && print_msg "取消卸载" green && exit 0
 
-    systemctl disable singbox --now
-    systemctl disable argo --now
-
-    rm -f $SYSTEMD_SINGBOX
-    rm -f $SYSTEMD_ARGO
-
-    systemctl daemon-reload
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable singbox --now
+        systemctl disable argo --now
+        rm -f "$SYSTEMD_SINGBOX" "$SYSTEMD_ARGO"
+        systemctl daemon-reload
+    else
+        pkill -f "$SINGBOX_PATH"
+        pkill -f "$CLOUDFLARED_PATH"
+    fi
 
     rm -rf "$AGSBX_DIR"
-    print_msg "卸载完成！" green
+    print_msg "卸载完成" green
 }
 
 # ======================================================================
@@ -344,6 +386,7 @@ do_list() {
 }
 
 show_help() {
+    print_msg "All-in-One TUIC & VLESS/VMess+Argo 管理脚本" blue
     echo "用法: bash $0 [ install | start | stop | restart | list | uninstall ]"
 }
 
@@ -358,5 +401,5 @@ case "$1" in
     stop)    do_stop ;;
     restart) do_restart ;;
     uninstall) do_uninstall ;;
-    *)       show_help ;;
+    help|*) show_help ;;
 esac
