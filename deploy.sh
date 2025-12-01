@@ -3,7 +3,6 @@
 # ======================================================================
 # All-in-One TUIC & VLESS/VMess+Argo 管理脚本
 # 支持交互式安装、IPv4/IPv6 自动检测
-# 增加保活机制，兼容 Ubuntu / Alpine
 # ======================================================================
 
 # --- 颜色 ---
@@ -22,8 +21,6 @@ CONFIG_PATH="$AGSBX_DIR/sb.json"
 CERT_PATH="$AGSBX_DIR/cert.pem"
 KEY_PATH="$AGSBX_DIR/private.key"
 VARS_PATH="$AGSBX_DIR/variables.conf"
-WATCHDOG_PATH="$AGSBX_DIR/watchdog.sh"
-SERVICE_PATH="/etc/systemd/system/singbox.service"
 
 # --- 辅助函数 ---
 print_msg() {
@@ -62,6 +59,7 @@ load_variables() {
     [ -f "$VARS_PATH" ] && . "$VARS_PATH"
 }
 
+# --- 获取 IPv4/IPv6 ---
 get_server_ip() {
     local ipv4
     if command -v curl >/dev/null 2>&1; then
@@ -73,12 +71,16 @@ get_server_ip() {
 }
 
 get_server_ipv6() {
+    # 手动指定优先
     [ -n "$SERVER_IPV6" ] && echo "$SERVER_IPV6" && return
+
     local iface ipv6
     for iface in $(ls /sys/class/net/ | grep -v lo); do
         ipv6=$(ip -6 addr show dev "$iface" | grep inet6 | grep -v '::1' | grep -v 'fe80' | awk '{print $2}' | cut -d/ -f1 | head -n1)
         [ -n "$ipv6" ] && echo "$ipv6" && return
     done
+
+    # 兜底：NAT IPv6 出口
     if command -v curl >/dev/null 2>&1; then
         ipv6=$(curl -6 -s https://icanhazip.com)
     else
@@ -87,10 +89,7 @@ get_server_ipv6() {
     echo "$ipv6"
 }
 
-# ======================================================================
-# 原始脚本内容完整保留
-# ======================================================================
-
+# --- 核心安装 ---
 do_install() {
     print_msg "--- 节点安装向导 ---" blue
     print_msg "请选择您要安装的节点类型:" yellow
@@ -102,6 +101,7 @@ do_install() {
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
 
+    # --- 交互式配置 ---
     if [[ "$INSTALL_CHOICE" =~ ^[1-3]$ ]]; then
         echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
     else
@@ -109,12 +109,14 @@ do_install() {
         exit 1
     fi
 
+    # TUIC 配置
     if [ "$INSTALL_CHOICE" = "1" ] || [ "$INSTALL_CHOICE" = "3" ]; then
         read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (回车使用默认 443): ${C_NC}")" TUIC_PORT
         TUIC_PORT=${TUIC_PORT:-443}
         echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
     fi
 
+    # Argo 配置
     if [ "$INSTALL_CHOICE" = "2" ] || [ "$INSTALL_CHOICE" = "3" ]; then
         read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
         if [ "$ARGO_PROTOCOL_CHOICE" = "1" ]; then
@@ -133,13 +135,16 @@ do_install() {
         echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
     fi
 
+    # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
     [ -n "$SERVER_IPV6" ] && echo "SERVER_IPV6='${SERVER_IPV6}'" >> "$VARS_PATH"
 
     load_variables
+
     print_msg "\n--- 准备依赖 ---" blue
     cpu_arch=$(get_cpu_arch)
 
+    # 下载 sing-box
     if [ ! -f "$SINGBOX_PATH" ]; then
         SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-${cpu_arch}.tar.gz"
         TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
@@ -149,11 +154,13 @@ do_install() {
         rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}"
     fi
 
+    # 下载 cloudflared
     if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && [ ! -f "$CLOUDFLARED_PATH" ]; then
         CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}"
         download_file "$CLOUDFLARED_URL" "$CLOUDFLARED_PATH"
     fi
 
+    # TLS 证书
     if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" ]]; then
         if ! command -v openssl >/dev/null 2>&1; then
             print_msg "⚠️ openssl 未安装，请先安装 openssl" red
@@ -163,11 +170,15 @@ do_install() {
         openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
     fi
 
+    # 生成 UUID
     UUID=$($SINGBOX_PATH generate uuid)
     echo "UUID='${UUID}'" >> "$VARS_PATH"
     print_msg "生成 UUID: $UUID" yellow
 
+    # 生成 sing-box 配置
     do_generate_config
+
+    # 启动
     do_start
     print_msg "\n--- 安装完成，获取节点信息 ---" blue
     do_list
@@ -184,6 +195,7 @@ do_generate_config() {
         fi
     fi
 
+    # 根据选择生成配置
     if [ "$INSTALL_CHOICE" = "1" ]; then
         cat > "$CONFIG_PATH" <<EOF
 {
@@ -215,6 +227,7 @@ EOF
     print_msg "配置文件已生成: $CONFIG_PATH" green
 }
 
+# --- 启停 ---
 do_start() {
     load_variables
     do_stop
@@ -292,78 +305,13 @@ show_help() {
     echo "命令: install | list | start | stop | restart | uninstall | help"
 }
 
-# ======================================================================
-# 保活机制
-# ======================================================================
-
-create_watchdog() {
-    cat > "$WATCHDOG_PATH" <<'EOF'
-#!/bin/bash
-AGSBX_DIR="$HOME/agsbx"
-SINGBOX_PATH="$AGSBX_DIR/sing-box"
-CLOUDFLARED_PATH="$AGSBX_DIR/cloudflared"
-CONFIG_PATH="$AGSBX_DIR/sb.json"
-
-while true; do
-    if ! pgrep -f "$SINGBOX_PATH" >/dev/null; then
-        nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$AGSBX_DIR/sing-box.log" 2>&1 &
-    fi
-
-    if [ -f "$AGSBX_DIR/variables.conf" ]; then
-        . "$AGSBX_DIR/variables.conf"
-        if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
-            if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-                if [ -n "$ARGO_TOKEN" ]; then
-                    nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" >> "$AGSBX_DIR/argo.log" 2>&1 &
-                else
-                    nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" >> "$AGSBX_DIR/argo.log" 2>&1 &
-                fi
-            fi
-        fi
-    fi
-    sleep 5
-done
-EOF
-    chmod +x "$WATCHDOG_PATH"
-}
-
-create_systemd_service() {
-    if command -v systemctl >/dev/null 2>&1; then
-        cat > "$SERVICE_PATH" <<EOF
-[Unit]
-Description=Sing-box & Argo Watchdog
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$WATCHDOG_PATH
-Restart=always
-RestartSec=5
-User=$(whoami)
-WorkingDirectory=$AGSBX_DIR
-
-[Install]
-WantedBy=multi-user.target
-EOF
-        systemctl daemon-reload
-        systemctl enable singbox
-        systemctl restart singbox
-        print_msg "systemd 守护服务已创建并启动" green
-    else
-        print_msg "未检测到 systemd，保活将依赖 watchdog.sh" yellow
-    fi
-}
-
-# ======================================================================
-# 命令分发
-# ======================================================================
-
+# --- 主入口 ---
 case "$1" in
-    install) do_install; create_watchdog; create_systemd_service ;;
-    start) do_start ;;
-    stop) do_stop ;;
+    install) do_install ;;
+    list)    do_list ;;
+    start)   do_start ;;
+    stop)    do_stop ;;
     restart) do_restart ;;
-    list) do_list ;;
     uninstall) do_uninstall ;;
     help|*) show_help ;;
 esac
