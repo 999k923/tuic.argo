@@ -40,23 +40,25 @@ check_cloudflared(){
         return
     fi
 
+    # 自动获取 tunnel 名称
+    TUNNEL_NAME=""
+    TUNNELS_JSON="$HOME/.cloudflared/tunnels.json"
+    if [ -f "$TUNNELS_JSON" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            TUNNEL_NAME=$(jq -r '.[0].Name' "$TUNNELS_JSON")
+        else
+            log "⚠️ 未安装 jq，无法自动获取 tunnel 名称，请手动指定"
+        fi
+    fi
+
+    if [ -z "$TUNNEL_NAME" ]; then
+        log "⚠️ 未找到可用 tunnel 名称，cloudflared 无法启动"
+        return
+    fi
+
     if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
         log "🔄 cloudflared 不在运行，启动中..."
-
-        # 如果有 ARGO_TOKEN
-        if [ -n "$ARGO_TOKEN" ]; then
-            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:12400" --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
-        # 如果有 tunnels.json
-        elif [ -f "$HOME/.cloudflared/tunnels.json" ]; then
-            TUNNEL_NAME=$(jq -r '.[0].Name' "$HOME/.cloudflared/tunnels.json")
-            if [ -n "$TUNNEL_NAME" ] && [ "$TUNNEL_NAME" != "null" ]; then
-                nohup "$CLOUDFLARED_PATH" tunnel run "$TUNNEL_NAME" >> "$LOG_FILE" 2>&1 &
-            else
-                log "❌ 未能获取 tunnel 名称"
-            fi
-        else
-            log "❌ cloudflared 无法启动：缺少 ARGO_TOKEN 或 tunnels.json"
-        fi
+        nohup "$CLOUDFLARED_PATH" tunnel run "$TUNNEL_NAME" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
