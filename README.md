@@ -49,7 +49,7 @@ curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 
 
 错误提示：openssl: command not found解决办法：
-
+==
 方法 1：安装 OpenSSL
 
 Debian/Ubuntu：
