@@ -259,12 +259,20 @@ do_stop() {
 }
 
 do_list() {
-    load_variables || { print_msg "请先安装节点" red; return; }
+    # --- 强制加载 variables.conf ---
+    if [ -f "$VARS_PATH" ]; then
+        source "$VARS_PATH"
+    else
+        print_msg "variables.conf 不存在，请先安装节点" red
+        return
+    fi
 
+    # --- 获取服务器 IP ---
     server_ip=$(get_server_ip)
     server_ipv6=$(get_server_ipv6)
     hostname=$(hostname)
 
+    # --- TUIC 节点 ---
     if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
         tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
         print_msg "--- TUIC IPv4 ---" yellow
@@ -273,6 +281,7 @@ do_list() {
         echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
     fi
 
+    # --- Argo 节点 ---
     if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
         current_argo_domain="$ARGO_DOMAIN"
         [ -z "$ARGO_TOKEN" ] && print_msg "等待临时 Argo 域名..." yellow
@@ -288,6 +297,7 @@ do_list() {
         fi
     fi
 }
+
 
 do_restart() { do_stop; sleep 1; do_start; }
 
