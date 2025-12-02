@@ -18,7 +18,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/sh $KEEP_ALIVE_SH
+ExecStart=/bin/bash $KEEP_ALIVE_SH
 Restart=always
 RestartSec=10
 User=root
