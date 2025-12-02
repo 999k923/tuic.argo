@@ -1,5 +1,5 @@
 #!/bin/sh
-# 一键设置 keep_alive.sh 开机自启
+# 一键设置 keep_alive.sh 开机自启 (兼容 Ubuntu / Alpine)
 KEEP_ALIVE_SH="/root/agsbx/keep_alive.sh"
 
 if [ ! -f "$KEEP_ALIVE_SH" ]; then
@@ -18,7 +18,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash $KEEP_ALIVE_SH
+ExecStart=/bin/bash /root/agsbx/keep_alive.sh
+WorkingDirectory=/root/agsbx
 Restart=always
 RestartSec=10
 User=root
@@ -29,7 +30,7 @@ EOF
 
     systemctl daemon-reload
     systemctl enable agsbx-keepalive
-    systemctl start agsbx-keepalive
+    systemctl restart agsbx-keepalive
     echo "✅ systemd 服务创建完成并已启动"
 else
     echo "🟡 未检测到 systemd，使用 rc.local / crontab 设置开机自启..."
@@ -47,9 +48,5 @@ else
 
     echo "✅ rc.local / crontab 设置完成，下次开机自动启动 keep_alive.sh"
 fi
-
-# 启动一次 keep_alive.sh
-echo "🚀 启动 keep_alive.sh..."
-$KEEP_ALIVE_SH &
 
 echo "🎉 设置完成！请查看日志 ~/agsbx/keep_alive.log 确认服务运行状态"
