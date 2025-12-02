@@ -13,28 +13,46 @@ if [ -f "$VARS_PATH" ]; then
     source "$VARS_PATH"
 fi
 
+# --- 清洗变量里的单引号 ---
+ARGO_TOKEN="${ARGO_TOKEN//\'/}"
+ARGO_DOMAIN="${ARGO_DOMAIN//\'/}"
+ARGO_LOCAL_PORT="${ARGO_LOCAL_PORT//\'/}"
+
 log(){
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
-# --- 启动 sing-box ---
-start_singbox(){
+check_singbox(){
+    if [ ! -f "$SINGBOX_PATH" ]; then
+        log "❌ sing-box 不存在: $SINGBOX_PATH"
+        return
+    fi
+
+    if [ ! -f "$CONFIG_PATH" ]; then
+        log "❌ 配置文件不存在: $CONFIG_PATH"
+        return
+    fi
+
     if ! pgrep -f "$SINGBOX_PATH" >/dev/null; then
-        log "启动 sing-box..."
+        log "🔄 sing-box 不在运行，启动中..."
         nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
 
-# --- 启动 cloudflared（token 模式） ---
-start_cloudflared(){
+check_cloudflared(){
+    if [ ! -f "$CLOUDFLARED_PATH" ]; then
+        log "❌ cloudflared 不存在"
+        return
+    fi
+
     if [ -z "$ARGO_TOKEN" ]; then
         log "❌ ARGO_TOKEN 未设置，无法启动 cloudflared"
         return
     fi
 
     if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-        log "启动 cloudflared (token 模式)..."
+        log "🔄 cloudflared 不在运行，启动中..."
 
         cat > "$CONFIG_YML" <<EOF
 log-level: info
@@ -49,27 +67,30 @@ EOF
     fi
 }
 
-# --- 每日重启一次 ---
 daily_restart(){
     TODAY=$(date +%Y-%m-%d)
-    LAST_FILE="$AGSBX_DIR/last_restart"
+    LAST_RESTART_FILE="$AGSBX_DIR/last_restart"
 
-    [[ -f "$LAST_FILE" ]] && LAST=$(cat "$LAST_FILE") || LAST="none"
+    if [ -f "$LAST_RESTART_FILE" ]; then
+        LAST=$(cat "$LAST_RESTART_FILE")
+    else
+        LAST="none"
+    fi
 
     if [ "$TODAY" != "$LAST" ]; then
-        log "每日重启 sing-box 和 cloudflared"
+        log "⏳ 到达每日重启时间，重启 sing-box / cloudflared"
         pkill -f "$SINGBOX_PATH"
         pkill -f "$CLOUDFLARED_PATH"
-        echo "$TODAY" > "$LAST_FILE"
+        echo "$TODAY" > "$LAST_RESTART_FILE"
         sleep 3
     fi
 }
 
-log "keep_alive 启动完成"
+log "🚀 keep_alive 启动"
 
 while true; do
-    start_singbox
-    start_cloudflared
+    check_singbox
+    check_cloudflared
     daily_restart
     sleep 10
 done
