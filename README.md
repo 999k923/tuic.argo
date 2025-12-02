@@ -72,7 +72,7 @@ yum install -y openssl
 curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh && chmod +x /root/agsbx/keep_alive.sh
 
 ```
-~~第二步：直接略过。
+第二步：好像是多余的操作，直接略过进行第三步，命令先放着，不用操作。
 ```bash
 curl -o /root/agsbx/variables.conf -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/variables.conf
 ```
