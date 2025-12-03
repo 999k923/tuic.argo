@@ -67,11 +67,11 @@ yum install -y openssl
 
 保活命令
 ==
-###第一步：
+## 第一步：
 ```bash
 curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh && chmod +x /root/agsbx/keep_alive.sh
 ```
-###第二步:
+## 第二步:
 ```bash
 nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```
