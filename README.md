@@ -78,3 +78,16 @@ nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
 ```
+### docker部署,docker版本只有hy2和tuic
+```bash
+services:
+  proxy:
+    image: 999k923/docker-proxy:latest
+    container_name: proxy_server
+    restart: always
+    network_mode: host        # host 网络模式保证 UDP/IPv6 正常
+    environment:
+      SERVICE_TYPE: 1         # 1=hy2, 2=tuic
+    volumes:
+      - /opt/stacks/proxy_server/data:/proxy_files
+```
