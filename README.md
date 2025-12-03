@@ -91,3 +91,4 @@ services:
     volumes:
       - /opt/stacks/proxy_server/data:/proxy_files
 ```
+挂载目录下有一个hy2_link.txt文件，节点信息就在这里面查看。
