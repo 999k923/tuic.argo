@@ -267,6 +267,16 @@ do_list() {
         return
     fi
 
+       # --- 检查 bonding_masters ---
+    BONDING_FILE="/sys/class/net/bonding_masters"
+    if [ -f "$BONDING_FILE" ]; then
+        bonding_masters=$(cat "$BONDING_FILE")
+        print_msg "--- Bonding Masters ---" yellow
+        echo "$bonding_masters"
+    else
+        print_msg "⚠ bonding_masters 不存在，跳过" yellow
+    fi
+
     # --- 获取服务器 IP ---
     server_ip=$(get_server_ip)
     server_ipv6=$(get_server_ipv6)
