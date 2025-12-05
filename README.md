@@ -5,7 +5,7 @@
 
 安装步骤
 ==
-这是在您的服务器上执行一键安装的命令。它会从您的 GitHub 链接下载并运行脚本，然后引导您完成交互式安装过程。
+这是一键安装的命令引导完成交互式安装过程。
 ```bash
 curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh && chmod +x deploy.sh && ./deploy.sh install
 ```
