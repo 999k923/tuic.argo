@@ -7,22 +7,10 @@
 ==
 这是在您的服务器上执行一键安装的命令。它会从您的 GitHub 链接下载并运行脚本，然后引导您完成交互式安装过程。
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh ) install
+curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh && chmod +x deploy.sh && ./deploy.sh install
 ```
-操作步骤：
-通过 SSH 连接到您的服务器。
-复制并粘贴上面的命令到终端。
-按下回车，脚本将开始运行。
-您会看到一个菜单，提示您选择安装 1) TUIC, 2) VMess+Argo, 或 3) 两者。
-根据提示输入数字并按回车，然后依次输入端口、Token 等信息即可完成安装。
-2. 后续管理命令
-为了方便地管理（停止、重启、卸载等），您需要先将脚本文件下载到服务器上。这个步骤只需要做一次。
-下载管理脚本的命令：
-```bash
-curl -Lo deploy.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/deploy.sh && chmod +x deploy.sh
-```
-执行此命令后 ，您的服务器当前目录下就会有一个名为 deploy.sh 的可执行文件。现在，您可以使用它来执行所有管理操作。
-显示节点信息,重点：导入节点后如果ip地址有错，IP地址和优选ip地址手动更换一下，以免节点不通。
+## 管理菜单
+显示节点信息：导入节点后如果ip地址有错，IP地址和优选ip地址手动更换一下，以免节点不通。
 ```bash
 ./deploy.sh list
 ```
