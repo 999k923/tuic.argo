@@ -78,6 +78,11 @@ nohup bash ~/agsbx/keep_alive.sh > ~/agsbx/keep_alive.log 2>&1 &
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
 ```
+## 取消保活并停止：
+```bash
+curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/stop.sh | sh
+```
+
 docker部署,docker版本只有hy2和tuic
 ==
 ```bash
