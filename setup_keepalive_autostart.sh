@@ -53,13 +53,14 @@ depend() {
 
 start() {
     ebegin "Starting Keep Alive Service"
-    # 后台启动脚本并记录 stdout/stderr
-    start-stop-daemon --start --quiet --make-pidfile --pidfile \$pidfile --exec \$command -- \$command_args >> \$log_file 2>&1
+    # ✅ 修正：后台运行脚本并记录 stdout/stderr
+    start-stop-daemon --start --quiet --make-pidfile --pidfile \$pidfile --background --exec \$command -- \$command_args >> \$log_file 2>&1
     if [ \$? -eq 0 ]; then
         eend 0
+        echo "\$(date) ✅ Keep Alive Service started" >> \$log_file
     else
         eend 1
-        echo "\$(date) ❌ 启动失败，请检查日志 \$log_file" >> \$log_file
+        echo "\$(date) ❌ Failed to start Keep Alive Service" >> \$log_file
     fi
 }
 
