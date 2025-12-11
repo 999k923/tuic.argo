@@ -61,7 +61,7 @@ curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
 ```
-## 取消保活并停止：
+## 取消保活：
 ```bash
 curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/stop.sh | sh
 ```
