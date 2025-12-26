@@ -77,11 +77,11 @@ get_server_ipv6() {
     local iface ipv6
     # 遍历所有网卡（不包括lo）
     for iface in $(ls /sys/class/net/ | grep -v lo); do
-        # 获取网卡的IPv6地址，并排除链路本地（fe80::）、回环（::1）、私有地址（fd00::）
+        # 获取网卡的IPv6地址，并排除链路本地（fe80::）、回环（::1）、私有地址（fd00::/8）
         ipv6=$(ip -6 addr show dev "$iface" | grep inet6 \
             | grep -v '::1' \
             | grep -v 'fe80' \
-            | grep -v '^fd' \
+            | grep -v '^fd' \        # 这里排除所有 fd00::/8 地址
             | awk '{print $2}' \
             | cut -d/ -f1 \
             | head -n1)
@@ -92,9 +92,9 @@ get_server_ipv6() {
 
     # 兜底：NAT IPv6 出口（使用 curl 或 wget）
     if command -v curl >/dev/null 2>&1; then
-        ipv6=$(curl -6 -s https://icanhazip.com)
+        ipv6=$(curl -6 -s ip.sb)
     else
-        ipv6=$(wget -6 -qO- https://icanhazip.com)
+        ipv6=$(wget -6 -qO- ip.sb)
     fi
     echo "$ipv6"
 }
