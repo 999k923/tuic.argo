@@ -71,33 +71,43 @@ get_server_ip() {
 }
 
 get_server_ipv6() {
-    # 手动指定优先
+    # 1. 手动指定优先
     [ -n "$SERVER_IPV6" ] && echo "$SERVER_IPV6" && return
 
-    local iface ipv6
-    # 遍历所有网卡（不包括lo）
-    for iface in $(ls /sys/class/net/ | grep -v lo); do
-        # 获取网卡的IPv6地址，并排除链路本地（fe80::）、回环（::1）、私有地址（fd00::/8）
-        ipv6=$(ip -6 addr show dev "$iface" | grep inet6 \
-            | grep -v '::1' \
-            | grep -v 'fe80' \
-            | grep -v '^fd' \        # 这里排除所有 fd00::/8 地址
-            | awk '{print $2}' \
-            | cut -d/ -f1 \
-            | head -n1)
-        
-        # 如果获取到有效的IPv6地址，则返回
-        [ -n "$ipv6" ] && echo "$ipv6" && return
-    done
-
-    # 兜底：NAT IPv6 出口（使用 curl 或 wget）
+    # 2. 通过 ip.sb 获取公网 IPv6 地址（使用 curl 或 wget）
     if command -v curl >/dev/null 2>&1; then
         ipv6=$(curl -6 -s ip.sb)
     else
         ipv6=$(wget -6 -qO- ip.sb)
     fi
-    echo "$ipv6"
+    # 如果成功获取到公网 IPv6 地址，则返回
+    if [ -n "$ipv6" ]; then
+        echo "$ipv6"
+        return
+    fi
+
+    # 3. 如果 ip.sb 获取失败，遍历网卡获取 IPv6 地址
+    local iface
+    for iface in $(ls /sys/class/net/ | grep -v lo); do
+        ipv6=$(ip -6 addr show dev "$iface" | grep inet6 \
+            | grep -v '::1' \
+            | grep -v 'fe80' \
+            | grep -v '^fd' \
+            | awk '{print $2}' \
+            | cut -d/ -f1 \
+            | head -n1)
+
+        # 如果获取到有效的 IPv6 地址，则返回
+        if [ -n "$ipv6" ]; then
+            echo "$ipv6"
+            return
+        fi
+    done
+
+    # 如果所有方法都失败，返回空或提示信息
+    echo "Unable to retrieve IPv6 address"
 }
+
 
 # --- 核心安装 ---
 do_install() {
