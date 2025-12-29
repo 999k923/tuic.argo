@@ -153,30 +153,41 @@ install_acme() {
 
 issue_cf_cert() {
     install_acme
-    
+
     # 安全加固：在写入敏感信息前设置权限
     touch "$VARS_PATH"
     chmod 600 "$VARS_PATH"
 
-    if [ -z "$CF_API_TOKEN" ]; then
-        read -rp "$(printf "${C_GREEN}请输入 Cloudflare API Token: ${C_NC}")" CF_API_TOKEN
-        echo "CF_API_TOKEN='${CF_API_TOKEN}'" >> "$VARS_PATH"
+    # 输入 Cloudflare 邮箱
+    if [ -z "$CF_EMAIL" ]; then
+        read -rp "$(printf "${C_GREEN}请输入 Cloudflare 账户邮箱: ${C_NC}")" CF_EMAIL
+        echo "CF_EMAIL='${CF_EMAIL}'" >> "$VARS_PATH"
     fi
-    export CF_Token="$CF_API_TOKEN"
 
+    # 输入 Cloudflare Global API Key
+    if [ -z "$CF_API_KEY" ]; then
+        read -rp "$(printf "${C_GREEN}请输入 Cloudflare Global API Key: ${C_NC}")" CF_API_KEY
+        echo "CF_API_KEY='${CF_API_KEY}'" >> "$VARS_PATH"
+    fi
+
+    export CF_Email="$CF_EMAIL"
+    export CF_Key="$CF_API_KEY"
+
+    # 输入 AnyTLS 域名
     if [ -z "$ANYTLS_DOMAIN" ]; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名: ${C_NC}")" ANYTLS_DOMAIN
         echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
     fi
 
-    print_msg "正在通过 Cloudflare DNS 申请证书..." yellow
+    print_msg "正在通过 Cloudflare DNS 申请证书 (邮箱 + API Key)..." yellow
     "$HOME/.acme.sh/acme.sh" --issue \
         --dns dns_cf \
         -d "${ANYTLS_DOMAIN}" \
-        --keylength ec-256
+        --keylength ec-256 \
+        --server letsencrypt
 
     if [ $? -ne 0 ]; then
-        print_msg "证书申请失败，请检查 API Token 和域名是否正确。" red
+        print_msg "证书申请失败，请检查邮箱、API Key 和域名是否正确。" red
         exit 1
     fi
 
@@ -189,6 +200,7 @@ issue_cf_cert() {
 
     print_msg "Cloudflare 证书申请并安装成功: $CERT_PATH" green
 }
+
 
 # --- 核心安装 ---
 do_install() {
