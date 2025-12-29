@@ -107,17 +107,17 @@ is_selected() {
 # --- 核心安装 ---
 do_install() {
     print_msg "--- 节点安装向导 ---" blue
-    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,2,4):" yellow
+    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,2,3):" yellow
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
-    print_msg "  4) 安装 VLESS + AnyTLS"
+    print_msg "  3) 安装 VLESS + AnyTLS"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
     
     # 格式化输入：去除空格，确保是逗号分隔
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
-    if [[ ! "$INSTALL_CHOICE" =~ ^[124](,[124])*$ ]]; then
-        print_msg "无效选项，请输入 1, 2, 4 中的一个或多个（用逗号分隔）。" red
+    if [[ ! "$INSTALL_CHOICE" =~ ^[123](,[123])*$ ]]; then
+        print_msg "无效选项，请输入 1, 2, 3 中的一个或多个（用逗号分隔）。" red
         exit 1
     fi
 
@@ -152,7 +152,7 @@ do_install() {
     fi
 
     # VLESS AnyTLS 配置
-    if is_selected 4; then
+    if is_selected 3; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
         ANYTLS_PORT=${ANYTLS_PORT:-443}
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名 (如 www.example.com): ${C_NC}")" ANYTLS_DOMAIN
@@ -186,13 +186,13 @@ do_install() {
     fi
 
     # TLS 证书
-    if is_selected 1 || is_selected 4; then
+    if is_selected 1 || is_selected 3; then
         if ! command -v openssl >/dev/null 2>&1; then
             print_msg "⚠️ openssl 未安装，请先安装 openssl" red
             exit 1
         fi
         openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
-        if is_selected 4; then
+        if is_selected 3; then
             openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=${ANYTLS_DOMAIN}" >/dev/null 2>&1
         else
             openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
@@ -232,7 +232,7 @@ do_generate_config() {
     fi
 
     # AnyTLS Inbound
-    if is_selected 4; then
+    if is_selected 3; then
         inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2","http/1.1"],"certificate_path":"%s","key_path":"%s"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
 
@@ -322,7 +322,7 @@ do_list() {
         fi
     fi
 
-    if is_selected 4; then
+    if is_selected 3; then
         print_msg "--- VLESS + AnyTLS ---" yellow
         echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
         echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
