@@ -111,68 +111,61 @@ get_server_ipv6() {
 
 # --- 核心安装 ---
 do_install() {
-    print_msg "请选择您要安装的节点类型，可组合输入，如 1,2 或 2,3:" yellow
-    print_msg "  1) TUIC"
-    print_msg "  2) Argo 隧道 (VLESS 或 VMess)"
-    print_msg "  3) VLESS + AnyTLS"
-    read -rp "$(printf "${C_GREEN}请输入选项 [1-3]，可组合: ${C_NC}")" INSTALL_CHOICE
-
+    print_msg "--- 节点安装向导 ---" blue
+    print_msg "请选择您要安装的节点类型:" yellow
+    print_msg "  1) 仅安装 TUIC"
+    print_msg "  2) 仅安装 Argo 隧道 (VLESS 或 VMess)"
+    print_msg "  3) 同时安装 TUIC 和 Argo 隧道"
+    print_msg "  4) 仅安装 VLESS + AnyTLS"
+    read -rp "$(printf "${C_GREEN}请输入选项 [1-4]: ${C_NC}")" INSTALL_CHOICE
 
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
 
-    # 转换输入为数组
-IFS=',' read -ra CHOICES <<< "$INSTALL_CHOICE"
-
-# 检查输入是否合法
-for c in "${CHOICES[@]}"; do
-    if [[ ! "$c" =~ ^[1-3]$ ]]; then
-        print_msg "无效选项: $c" red
+    if [[ "$INSTALL_CHOICE" =~ ^[1-4]$ ]]; then
+        echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
+    else
+        print_msg "无效选项，安装已取消。" red
         exit 1
     fi
-done
-
-# 保存到变量文件
-echo "INSTALL_CHOICE='${INSTALL_CHOICE}'" >> "$VARS_PATH"
-
 
     # TUIC 配置
-    if [[ " ${CHOICES[*]} " =~ " 1 " ]]; then
-    read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (默认 443): ${C_NC}")" TUIC_PORT
-    TUIC_PORT=${TUIC_PORT:-443}
-    echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
-fi
-
+    if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" ]]; then
+        read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (默认 443): ${C_NC}")" TUIC_PORT
+        TUIC_PORT=${TUIC_PORT:-443}
+        echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
+    fi
 
     # Argo 配置
-    if [[ " ${CHOICES[*]} " =~ " 2 " ]]; then
-    read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
-    if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
-        ARGO_PROTOCOL='vless'
-        read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
-    else
-        ARGO_PROTOCOL='vmess'
-        read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+    if [[ "$INSTALL_CHOICE" = "2" || "$INSTALL_CHOICE" = "3" ]]; then
+        read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
+        if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
+            ARGO_PROTOCOL='vless'
+            read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+        else
+            ARGO_PROTOCOL='vmess'
+            read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+        fi
+        ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
+        read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
+        [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
+
+        echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
+        echo "ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT}" >> "$VARS_PATH"
+        echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
+        echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
     fi
-    ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
-    read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
-    [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
-
-    echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
-    echo "ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT}" >> "$VARS_PATH"
-    echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
-    echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
-fi
-
 
     # VLESS AnyTLS 配置
-    if [[ " ${CHOICES[*]} " =~ " 3 " ]]; then
-    read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
-    ANYTLS_PORT=${ANYTLS_PORT:-443}
-    read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名 (如 www.example.com): ${C_NC}")" ANYTLS_DOMAIN
-    echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
-    echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
-fi
+    if [[ "$INSTALL_CHOICE" = "4" ]]; then
+        read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
+        ANYTLS_PORT=${ANYTLS_PORT:-443}
+
+        read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名 (如 www.example.com): ${C_NC}")" ANYTLS_DOMAIN
+
+        echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
+        echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
+    fi
 
     # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
@@ -360,7 +353,7 @@ do_list() {
     hostname=$(hostname)
 
     # --- TUIC 节点 ---
-    if [[ " ${CHOICES[*]} " =~ " 1 " ]]; then
+    if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
         tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
         print_msg "--- TUIC IPv4 ---" yellow
         echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-ipv4-${hostname}"
@@ -369,7 +362,7 @@ do_list() {
     fi
 
     # --- Argo 节点 ---
-    if [[ " ${CHOICES[*]} " =~ " 2 " ]]; then
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
         current_argo_domain="$ARGO_DOMAIN"
         [ -z "$ARGO_TOKEN" ] && print_msg "等待临时 Argo 域名..." yellow
 
@@ -384,7 +377,7 @@ do_list() {
         fi
     fi
 # --- VLESS AnyTLS ---    
-if [[ " ${CHOICES[*]} " =~ " 3 " ]]; then
+if [ "$INSTALL_CHOICE" = "4" ]; then
     print_msg "--- VLESS + AnyTLS ---" yellow
     echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
     echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
