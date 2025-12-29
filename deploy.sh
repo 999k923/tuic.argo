@@ -271,25 +271,25 @@ cat > "$CONFIG_PATH" <<EOF
     "timestamp": true
   },
   "inbounds": [
-   {
-  "type": "vless",
-  "tag": "vless-anytls",
-  "listen": "::",
-  "listen_port": ${ANYTLS_PORT},
-  "users": [
     {
-      "uuid": "${UUID}"
+      "type": "vless",
+      "tag": "vless-anytls",
+      "listen": "::",
+      "dual_stack": true,
+      "listen_port": ${ANYTLS_PORT},
+      "users": [
+        {
+          "uuid": "${UUID}"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${ANYTLS_DOMAIN}",
+        "alpn": ["h2", "http/1.1"],
+        "certificate_path": "${CERT_PATH}",
+        "key_path": "${KEY_PATH}"
+      }
     }
-  ],
-  "tls": {
-    "enabled": true,
-    "server_name": "${ANYTLS_DOMAIN}",
-    "alpn": ["h2", "http/1.1"],
-    "certificate_path": "${CERT_PATH}",
-    "key_path": "${KEY_PATH}"
-  }
-}
-
   ],
   "outbounds": [
     {
@@ -299,6 +299,7 @@ cat > "$CONFIG_PATH" <<EOF
   ]
 }
 EOF
+
     fi
     print_msg "配置文件已生成: $CONFIG_PATH" green
 }
