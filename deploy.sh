@@ -264,12 +264,8 @@ EOF
 }
 EOF
     elif [ "$INSTALL_CHOICE" = "4" ]; then
-        # IPv6 端口就是用户输入的 ANYTLS_PORT
-        ipv6_port=${ANYTLS_PORT}
-        # IPv4 端口比 IPv6 +1
-        ipv4_port=$((ANYTLS_PORT+1))
-
-        cat > "$CONFIG_PATH" <<EOF
+    # 单端口监听所有 IP，和 TUIC 一样
+    cat > "$CONFIG_PATH" <<EOF
 {
   "log": {
     "level": "info",
@@ -278,27 +274,9 @@ EOF
   "inbounds": [
     {
       "type": "vless",
-      "tag": "vless-anytls-ipv6",
+      "tag": "vless-anytls",
       "listen": "::",
-      "listen_port": ${ipv6_port},
-      "users": [
-        {
-          "uuid": "${UUID}"
-        }
-      ],
-      "tls": {
-        "enabled": true,
-        "server_name": "${ANYTLS_DOMAIN}",
-        "alpn": ["h2", "http/1.1"],
-        "certificate_path": "${CERT_PATH}",
-        "key_path": "${KEY_PATH}"
-      }
-    },
-    {
-      "type": "vless",
-      "tag": "vless-anytls-ipv4",
-      "listen": "0.0.0.0",
-      "listen_port": ${ipv4_port},
+      "listen_port": ${ANYTLS_PORT},
       "users": [
         {
           "uuid": "${UUID}"
@@ -322,9 +300,10 @@ EOF
 }
 EOF
 
-        print_msg "配置文件已生成: $CONFIG_PATH" green
-        print_msg "IPv6 端口: ${ipv6_port}, IPv4 端口: ${ipv4_port}" yellow
-    fi
+    print_msg "配置文件已生成: $CONFIG_PATH" green
+    print_msg "AnyTLS 监听端口: ${ANYTLS_PORT}" yellow
+fi
+
 }  # 结束 do_generate_config
 
 
@@ -399,13 +378,10 @@ do_list() {
     fi
 # --- VLESS AnyTLS ---    
 if [ "$INSTALL_CHOICE" = "4" ]; then
-    print_msg "--- VLESS + AnyTLS IPv4 ---" yellow
-    echo "vless://${UUID}@${server_ip}:${ipv4_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-ipv4-${hostname}"
-
-    print_msg "--- VLESS + AnyTLS IPv6 ---" yellow
-    echo "vless://${UUID}@[${server_ipv6}]:${ipv6_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-ipv6-${hostname}"
+    print_msg "--- VLESS + AnyTLS ---" yellow
+    echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
+    echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
 fi
-
 
 }
 
