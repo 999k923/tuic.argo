@@ -2,7 +2,7 @@
 
 # ======================================================================
 # All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (多选版)
-# 支持交互式安装、IPv4/IPv6 自动检测
+# 支持交互式安装、IPv4/IPv6 自动检测、Cloudflare 证书申请
 # ======================================================================
 
 # --- 颜色 ---
@@ -104,13 +104,68 @@ is_selected() {
     [[ ",$INSTALL_CHOICE," =~ ,$choice, ]]
 }
 
+# --- 证书申请逻辑 ---
+install_acme() {
+    if [ ! -d "$HOME/.acme.sh" ]; then
+        print_msg "正在安装 acme.sh..." yellow
+        curl https://get.acme.sh | sh
+        # 重新加载环境
+        [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
+    fi
+}
+
+issue_cf_cert() {
+    install_acme
+    
+    # 确保有 socat 依赖（acme.sh 某些模式需要）
+    if ! command -v socat >/dev/null 2>&1; then
+        print_msg "正在安装 socat..." yellow
+        if command -v apt >/dev/null 2>&1; then
+            sudo apt update && sudo apt install -y socat
+        elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y socat
+        fi
+    fi
+
+    if [ -z "$CF_API_TOKEN" ]; then
+        read -rp "$(printf "${C_GREEN}请输入 Cloudflare API Token: ${C_NC}")" CF_API_TOKEN
+        echo "CF_API_TOKEN='${CF_API_TOKEN}'" >> "$VARS_PATH"
+    fi
+    export CF_Token="$CF_API_TOKEN"
+
+    if [ -z "$ANYTLS_DOMAIN" ]; then
+        read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名: ${C_NC}")" ANYTLS_DOMAIN
+        echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
+    fi
+
+    print_msg "正在通过 Cloudflare DNS 申请证书..." yellow
+    "$HOME/.acme.sh/acme.sh" --issue \
+        --dns dns_cf \
+        -d "${ANYTLS_DOMAIN}" \
+        --keylength ec-256
+
+    if [ $? -ne 0 ]; then
+        print_msg "证书申请失败，请检查 API Token 和域名是否正确。" red
+        exit 1
+    fi
+
+    # 安装证书到指定路径
+    "$HOME/.acme.sh/acme.sh" --install-cert \
+        -d "${ANYTLS_DOMAIN}" \
+        --ecc \
+        --key-file "$KEY_PATH" \
+        --fullchain-file "$CERT_PATH"
+
+    print_msg "Cloudflare 证书申请并安装成功: $CERT_PATH" green
+}
+
 # --- 核心安装 ---
 do_install() {
     print_msg "--- 节点安装向导 ---" blue
     print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,2,3):" yellow
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
-    print_msg "  3) 安装 VLESS + AnyTLS"
+    print_msg "  3) 安装 VLESS + AnyTLS (使用 CF 证书)"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
     
     # 格式化输入：去除空格，确保是逗号分隔
@@ -155,9 +210,8 @@ do_install() {
     if is_selected 3; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
         ANYTLS_PORT=${ANYTLS_PORT:-443}
-        read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名 (如 www.example.com): ${C_NC}")" ANYTLS_DOMAIN
         echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
-        echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
+        # 域名和 Token 会在 issue_cf_cert 中获取并保存
     fi
 
     # 手动指定 IPv6（可选）
@@ -185,18 +239,18 @@ do_install() {
         download_file "$CLOUDFLARED_URL" "$CLOUDFLARED_PATH"
     fi
 
-    # TLS 证书
-    if is_selected 1 || is_selected 3; then
+    # TLS 证书处理
+    if is_selected 3; then
+        issue_cf_cert
+    elif is_selected 1; then
+        # 仅安装 TUIC 且未安装 AnyTLS 时，生成自签名证书
         if ! command -v openssl >/dev/null 2>&1; then
             print_msg "⚠️ openssl 未安装，请先安装 openssl" red
             exit 1
         fi
         openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
-        if is_selected 3; then
-            openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=${ANYTLS_DOMAIN}" >/dev/null 2>&1
-        else
-            openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
-        fi
+        openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
+        print_msg "已生成 TUIC 自签名证书。" yellow
     fi
 
     # 生成 UUID
@@ -300,7 +354,6 @@ do_list() {
         current_argo_domain="$ARGO_DOMAIN"
         if [ -z "$ARGO_TOKEN" ]; then
             print_msg "等待临时 Argo 域名..." yellow
-            # 尝试从日志获取临时域名
             for i in {1..10}; do
                 current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///')
                 [ -n "$current_argo_domain" ] && break
@@ -324,8 +377,9 @@ do_list() {
 
     if is_selected 3; then
         print_msg "--- VLESS + AnyTLS ---" yellow
-        echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
-        echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-${hostname}"
+        # 使用真实证书，移除 allowInsecure=1
+        echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-${hostname}"
+        echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-${hostname}"
     fi
 }
 
