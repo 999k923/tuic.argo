@@ -145,7 +145,7 @@ install_acme() {
     # 4. 安装 acme.sh (严谨判断可执行文件)
     if [ ! -x "$HOME/.acme.sh/acme.sh" ]; then
         print_msg "正在安装 acme.sh..." yellow
-        curl https://get.acme.sh | sh -s -- --install --force
+        curl https://get.acme.sh | bash -s -- --install --force
         [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
     fi
 }
