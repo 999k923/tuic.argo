@@ -142,12 +142,16 @@ install_acme() {
         (crontab -l 2>/dev/null; echo "") | crontab -
     fi
 
-    # 4. 安装 acme.sh (严谨判断可执行文件)
+    # 4. 安装 acme.sh (手动下载 tar.gz)
     if [ ! -x "$HOME/.acme.sh/acme.sh" ]; then
-        print_msg "正在安装 acme.sh..." yellow
-        # 修正参数拼写：--install
-        curl https://get.acme.sh | sh -s -- --install --force
-        [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
+    print_msg "正在安装 acme.sh (手动下载 tar.gz)..." yellow
+    mkdir -p "$HOME/.acme.sh"
+    cd "$HOME/.acme.sh" || exit
+    curl -L https://github.com/acmesh-official/acme.sh/archive/master.tar.gz -o master.tar.gz
+    tar -xzf master.tar.gz --strip-components=1
+    ./acme.sh --install --force
+    [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
+    print_msg "acme.sh 安装完成" green
     fi
 }
 
