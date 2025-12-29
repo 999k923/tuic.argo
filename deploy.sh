@@ -71,19 +71,22 @@ get_server_ip() {
 }
 
 get_server_ipv6() {
+    # 1. 手动指定优先
     [ -n "$SERVER_IPV6" ] && echo "$SERVER_IPV6" && return
 
+    # 2. 通过 ip.sb 获取公网 IPv6 地址（使用 curl 或 wget）
     if command -v curl >/dev/null 2>&1; then
         ipv6=$(curl -6 -s ip.sb)
     else
         ipv6=$(wget -6 -qO- ip.sb)
     fi
-
+    # 如果成功获取到公网 IPv6 地址，则返回
     if [ -n "$ipv6" ]; then
         echo "$ipv6"
         return
     fi
 
+    # 3. 如果 ip.sb 获取失败，遍历网卡获取 IPv6 地址
     local iface
     for iface in $(ls /sys/class/net/ | grep -v lo); do
         ipv6=$(ip -6 addr show dev "$iface" | grep inet6 \
@@ -93,14 +96,18 @@ get_server_ipv6() {
             | awk '{print $2}' \
             | cut -d/ -f1 \
             | head -n1)
+
+        # 如果获取到有效的 IPv6 地址，则返回
         if [ -n "$ipv6" ]; then
             echo "$ipv6"
             return
         fi
     done
 
+    # 如果所有方法都失败，返回空或提示信息
     echo "Unable to retrieve IPv6 address"
 }
+
 
 # --- 核心安装 ---
 do_install() {
@@ -110,13 +117,12 @@ do_install() {
     print_msg "  2) 仅安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 同时安装 TUIC 和 Argo 隧道"
     print_msg "  4) 仅安装 VLESS + AnyTLS"
-    print_msg "  5) 同时安装 AnyTLS + Argo 隧道"
-    read -rp "$(printf "${C_GREEN}请输入选项 [1-5]: ${C_NC}")" INSTALL_CHOICE
+    read -rp "$(printf "${C_GREEN}请输入选项 [1-4]: ${C_NC}")" INSTALL_CHOICE
 
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
 
-    if [[ "$INSTALL_CHOICE" =~ ^[1-5]$ ]]; then
+    if [[ "$INSTALL_CHOICE" =~ ^[1-4]$ ]]; then
         echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
     else
         print_msg "无效选项，安装已取消。" red
@@ -131,7 +137,7 @@ do_install() {
     fi
 
     # Argo 配置
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3|5)$ ]]; then
+    if [[ "$INSTALL_CHOICE" = "2" || "$INSTALL_CHOICE" = "3" ]]; then
         read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
         if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
             ARGO_PROTOCOL='vless'
@@ -151,9 +157,10 @@ do_install() {
     fi
 
     # VLESS AnyTLS 配置
-    if [[ "$INSTALL_CHOICE" =~ ^(4|5)$ ]]; then
+    if [[ "$INSTALL_CHOICE" = "4" ]]; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
         ANYTLS_PORT=${ANYTLS_PORT:-443}
+
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名 (如 www.example.com): ${C_NC}")" ANYTLS_DOMAIN
 
         echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
@@ -180,25 +187,27 @@ do_install() {
     fi
 
     # 下载 cloudflared
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3|5)$ ]] && [ ! -f "$CLOUDFLARED_PATH" ]; then
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]] && [ ! -f "$CLOUDFLARED_PATH" ]; then
         CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}"
         download_file "$CLOUDFLARED_URL" "$CLOUDFLARED_PATH"
     fi
 
     # TLS 证书
-    if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" || "$INSTALL_CHOICE" =~ ^(4|5)$ ]]; then
-        if ! command -v openssl >/dev/null 2>&1; then
-            print_msg "⚠️ openssl 未安装，请先安装 openssl" red
-            exit 1
-        fi
-        openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
-
-        if [[ "$INSTALL_CHOICE" =~ ^(4|5)$ ]]; then
-            openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=${ANYTLS_DOMAIN}" >/dev/null 2>&1
-        else
-            openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
-        fi
+if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" || "$INSTALL_CHOICE" = "4" ]]; then
+    if ! command -v openssl >/dev/null 2>&1; then
+        print_msg "⚠️ openssl 未安装，请先安装 openssl" red
+        exit 1
     fi
+
+    openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
+
+    # AnyTLS 模式使用 AnyTLS 域名，其他使用默认 CN
+    if [[ "$INSTALL_CHOICE" = "4" ]]; then
+        openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=${ANYTLS_DOMAIN}" >/dev/null 2>&1
+    else
+        openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
+    fi
+fi
 
     # 生成 UUID
     UUID=$($SINGBOX_PATH generate uuid)
@@ -214,11 +223,11 @@ do_install() {
     do_list
 }
 
-# --- 生成配置 ---
+
 do_generate_config() {
     load_variables
     local argo_inbound=""
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3|5)$ ]]; then
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
         if [ "$ARGO_PROTOCOL" = "vless" ]; then
             argo_inbound=$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")
         else
@@ -254,8 +263,10 @@ EOF
   "outbounds":[{"type":"direct","tag":"direct"}]
 }
 EOF
-    elif [ "$INSTALL_CHOICE" =~ ^(4|5)$ ]; then
+    elif [ "$INSTALL_CHOICE" = "4" ]; then
+        # IPv6 端口就是用户输入的 ANYTLS_PORT
         ipv6_port=${ANYTLS_PORT}
+        # IPv4 端口比 IPv6 +1
         ipv4_port=$((ANYTLS_PORT+1))
 
         cat > "$CONFIG_PATH" <<EOF
@@ -300,23 +311,22 @@ EOF
         "certificate_path": "${CERT_PATH}",
         "key_path": "${KEY_PATH}"
       }
-    },
-EOF
-        if [[ "$INSTALL_CHOICE" = "5" ]]; then
-            cat >> "$CONFIG_PATH" <<EOF
-    ${argo_inbound}
-EOF
-        fi
-        cat >> "$CONFIG_PATH" <<EOF
+    }
   ],
-  "outbounds":[{"type":"direct","tag":"direct"}]
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ]
 }
 EOF
 
         print_msg "配置文件已生成: $CONFIG_PATH" green
         print_msg "IPv6 端口: ${ipv6_port}, IPv4 端口: ${ipv4_port}" yellow
     fi
-}
+}  # 结束 do_generate_config
+
 
 # --- 启停 ---
 do_start() {
@@ -325,7 +335,7 @@ do_start() {
 
     nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
 
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3|5)$ ]]; then
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
         if [ -n "$ARGO_TOKEN" ]; then
             cat > "$AGSBX_DIR/config.yml" <<EOF
 log-level: info
@@ -350,6 +360,7 @@ do_stop() {
 }
 
 do_list() {
+    # --- 强制加载 variables.conf ---
     if [ -f "$VARS_PATH" ]; then
         source "$VARS_PATH"
     else
@@ -357,10 +368,12 @@ do_list() {
         return
     fi
 
+    # --- 获取服务器 IP ---
     server_ip=$(get_server_ip)
     server_ipv6=$(get_server_ipv6)
     hostname=$(hostname)
 
+    # --- TUIC 节点 ---
     if [[ "$INSTALL_CHOICE" =~ ^(1|3)$ ]]; then
         tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
         print_msg "--- TUIC IPv4 ---" yellow
@@ -369,7 +382,8 @@ do_list() {
         echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
     fi
 
-    if [[ "$INSTALL_CHOICE" =~ ^(2|3|5)$ ]]; then
+    # --- Argo 节点 ---
+    if [[ "$INSTALL_CHOICE" =~ ^(2|3)$ ]]; then
         current_argo_domain="$ARGO_DOMAIN"
         [ -z "$ARGO_TOKEN" ] && print_msg "等待临时 Argo 域名..." yellow
 
@@ -383,16 +397,17 @@ do_list() {
             echo "vmess://${vmess_base64}"
         fi
     fi
+# --- VLESS AnyTLS ---    
+ if [ "$INSTALL_CHOICE" = "4" ]; then
+    print_msg "--- VLESS + AnyTLS IPv4 ---" yellow
+    echo "vless://${UUID}@${server_ip}:${ipv4_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-ipv4-${hostname}"
 
-    if [[ "$INSTALL_CHOICE" =~ ^(4|5)$ ]]; then
-        ipv6_port=${ANYTLS_PORT}
-        ipv4_port=$((ANYTLS_PORT+1))
-        print_msg "--- VLESS + AnyTLS IPv4 ---" yellow
-        echo "vless://${UUID}@${server_ip}:${ipv4_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allow_insecure=1#anytls-ipv4-${hostname}"
-        print_msg "--- VLESS + AnyTLS IPv6 ---" yellow
-        echo "vless://${UUID}@[${server_ipv6}]:${ipv6_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allow_insecure=1#anytls-ipv6-${hostname}"
-    fi
+    print_msg "--- VLESS + AnyTLS IPv6 ---" yellow
+    echo "vless://${UUID}@[${server_ipv6}]:${ipv6_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-ipv6-${hostname}"
+fi
+
 }
+
 
 do_restart() { do_stop; sleep 1; do_start; }
 
