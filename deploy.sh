@@ -117,12 +117,11 @@ do_install() {
     print_msg "  2) 仅安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 同时安装 TUIC 和 Argo 隧道"
     print_msg "  4) 仅安装 VLESS + AnyTLS"
-    read -rp "$(printf "${C_GREEN}请输入选项 [1-3]: ${C_NC}")" INSTALL_CHOICE
+    read -rp "$(printf "${C_GREEN}请输入选项 [1-4]: ${C_NC}")" INSTALL_CHOICE
 
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
 
-    # --- 交互式配置 ---
     if [[ "$INSTALL_CHOICE" =~ ^[1-4]$ ]]; then
         echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
     else
@@ -131,16 +130,16 @@ do_install() {
     fi
 
     # TUIC 配置
-    if [ "$INSTALL_CHOICE" = "1" ] || [ "$INSTALL_CHOICE" = "3" ]; then
-        read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (回车使用默认 443): ${C_NC}")" TUIC_PORT
+    if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" ]]; then
+        read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (默认 443): ${C_NC}")" TUIC_PORT
         TUIC_PORT=${TUIC_PORT:-443}
         echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
     fi
 
     # Argo 配置
-    if [ "$INSTALL_CHOICE" = "2" ] || [ "$INSTALL_CHOICE" = "3" ]; then
+    if [[ "$INSTALL_CHOICE" = "2" || "$INSTALL_CHOICE" = "3" ]]; then
         read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
-        if [ "$ARGO_PROTOCOL_CHOICE" = "1" ]; then
+        if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
             ARGO_PROTOCOL='vless'
             read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
         else
@@ -150,13 +149,15 @@ do_install() {
         ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
         read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
         [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
+
         echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
         echo "ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT}" >> "$VARS_PATH"
         echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
         echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
     fi
+
     # VLESS AnyTLS 配置
-    if [ "$INSTALL_CHOICE" = "4" ]; then
+    if [[ "$INSTALL_CHOICE" = "4" ]]; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
         ANYTLS_PORT=${ANYTLS_PORT:-443}
 
@@ -164,8 +165,7 @@ do_install() {
 
         echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
         echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
-   fi
- 
+    fi
 
     # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
@@ -193,14 +193,21 @@ do_install() {
     fi
 
     # TLS 证书
-    if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" ]]; then
-        if ! command -v openssl >/dev/null 2>&1; then
-            print_msg "⚠️ openssl 未安装，请先安装 openssl" red
-            exit 1
-        fi
-        openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
+if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" || "$INSTALL_CHOICE" = "4" ]]; then
+    if ! command -v openssl >/dev/null 2>&1; then
+        print_msg "⚠️ openssl 未安装，请先安装 openssl" red
+        exit 1
+    fi
+
+    openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
+
+    # AnyTLS 模式使用 AnyTLS 域名，其他使用默认 CN
+    if [[ "$INSTALL_CHOICE" = "4" ]]; then
+        openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=${ANYTLS_DOMAIN}" >/dev/null 2>&1
+    else
         openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
     fi
+fi
 
     # 生成 UUID
     UUID=$($SINGBOX_PATH generate uuid)
@@ -210,11 +217,12 @@ do_install() {
     # 生成 sing-box 配置
     do_generate_config
 
-    # 启动
+    # 启动服务
     do_start
     print_msg "\n--- 安装完成，获取节点信息 ---" blue
     do_list
 }
+
 
 do_generate_config() {
     load_variables
