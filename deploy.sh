@@ -270,36 +270,26 @@ cat > "$CONFIG_PATH" <<EOF
     "level": "info",
     "timestamp": true
   },
- "inbounds": [
-  {
-    "type": "vless",
-    "tag": "vless-anytls-ipv4",
-    "listen": "0.0.0.0",
-    "listen_port": 12400,
-    "users": [{"uuid": "xxxx"}],
-    "tls": {
-      "enabled": true,
-      "server_name": "yourdomain.com",
-      "alpn": ["h2", "http/1.1"],
-      "certificate_path": "/root/agsbx/cert.pem",
-      "key_path": "/root/agsbx/private.key"
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-anytls",
+      "listen": "::",
+      "listen_port": ${ANYTLS_PORT},
+      "users": [
+        {
+          "uuid": "${UUID}"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${ANYTLS_DOMAIN}",
+        "alpn": ["h2", "http/1.1"],
+        "certificate_path": "${CERT_PATH}",
+        "key_path": "${KEY_PATH}"
+      }
     }
-  },
-  {
-    "type": "vless",
-    "tag": "vless-anytls-ipv6",
-    "listen": "::",
-    "listen_port": 12400,
-    "users": [{"uuid": "xxxx"}],
-    "tls": {
-      "enabled": true,
-      "server_name": "yourdomain.com",
-      "alpn": ["h2", "http/1.1"],
-      "certificate_path": "/root/agsbx/cert.pem",
-      "key_path": "/root/agsbx/private.key"
-    }
-  }
-],
+  ],
   "outbounds": [
     {
       "type": "direct",
@@ -308,6 +298,7 @@ cat > "$CONFIG_PATH" <<EOF
   ]
 }
 EOF
+
 
     fi
     print_msg "配置文件已生成: $CONFIG_PATH" green
