@@ -19,6 +19,9 @@ ARGO_DOMAIN="${ARGO_DOMAIN//\'/}"
 ARGO_LOCAL_PORT="${ARGO_LOCAL_PORT//\'/}"
 
 log(){
+    if [ -f "$LOG_FILE" ] && [ $(stat -c%s "$LOG_FILE") -gt 10485760 ]; then
+        > "$LOG_FILE"   # 清空日志
+    fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
