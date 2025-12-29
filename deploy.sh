@@ -398,13 +398,14 @@ do_list() {
         fi
     fi
 # --- VLESS AnyTLS ---    
- if [ "$INSTALL_CHOICE" = "4" ]; then
+if [ "$INSTALL_CHOICE" = "4" ]; then
     print_msg "--- VLESS + AnyTLS IPv4 ---" yellow
-    echo "vless://${UUID}@${server_ip}:${ipv4_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-ipv4-${hostname}"
+    echo "vless://${UUID}@${server_ip}:${ipv4_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-ipv4-${hostname}"
 
     print_msg "--- VLESS + AnyTLS IPv6 ---" yellow
-    echo "vless://${UUID}@[${server_ipv6}]:${ipv6_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-ipv6-${hostname}"
+    echo "vless://${UUID}@[${server_ipv6}]:${ipv6_port}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome&allowInsecure=1#anytls-ipv6-${hostname}"
 fi
+
 
 }
 
