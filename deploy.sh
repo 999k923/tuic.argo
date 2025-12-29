@@ -264,6 +264,11 @@ EOF
 }
 EOF
 elif [ "$INSTALL_CHOICE" = "4" ]; then
+# IPv6 端口就是用户输入的 ANYTLS_PORT
+ipv6_port=${ANYTLS_PORT}
+# IPv4 端口比 IPv6 +1
+ipv4_port=$((ANYTLS_PORT+1))
+
 cat > "$CONFIG_PATH" <<EOF
 {
   "log": {
@@ -273,9 +278,27 @@ cat > "$CONFIG_PATH" <<EOF
   "inbounds": [
     {
       "type": "vless",
-      "tag": "vless-anytls",
+      "tag": "vless-anytls-ipv6",
       "listen": "::",
-      "listen_port": ${ANYTLS_PORT},
+      "listen_port": ${ipv6_port},
+      "users": [
+        {
+          "uuid": "${UUID}"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${ANYTLS_DOMAIN}",
+        "alpn": ["h2", "http/1.1"],
+        "certificate_path": "${CERT_PATH}",
+        "key_path": "${KEY_PATH}"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-anytls-ipv4",
+      "listen": "0.0.0.0",
+      "listen_port": ${ipv4_port},
       "users": [
         {
           "uuid": "${UUID}"
@@ -299,10 +322,9 @@ cat > "$CONFIG_PATH" <<EOF
 }
 EOF
 
+print_msg "配置文件已生成: $CONFIG_PATH" green
+print_msg "IPv6 端口: ${ipv6_port}, IPv4 端口: ${ipv4_port}" yellow
 
-    fi
-    print_msg "配置文件已生成: $CONFIG_PATH" green
-}
 
 # --- 启停 ---
 do_start() {
