@@ -111,33 +111,27 @@ get_server_ipv6() {
 
 # --- 核心安装 ---
 do_install() {
-    print_msg "--- 节点安装向导 ---" blue
-    print_msg "请选择您要安装的节点类型:" yellow
     print_msg "  1) 仅安装 TUIC"
     print_msg "  2) 仅安装 Argo 隧道 (VLESS 或 VMess)"
-    print_msg "  3) 同时安装 TUIC 和 Argo 隧道"
-    print_msg "  4) 仅安装 VLESS + AnyTLS"
-    read -rp "$(printf "${C_GREEN}请输入选项 [1-4]: ${C_NC}")" INSTALL_CHOICE
+    print_msg "  3) 仅安装 VLESS + AnyTLS"
+    print_msg "支持组合输入，如: 1,2  或  1,3"
+    read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
+
 
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
-
-    if [[ "$INSTALL_CHOICE" =~ ^[1-4]$ ]]; then
-        echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
-    else
-        print_msg "无效选项，安装已取消。" red
-        exit 1
-    fi
+    
+    echo "INSTALL_CHOICE='${INSTALL_CHOICE}'" >> "$VARS_PATH"
 
     # TUIC 配置
-    if [[ "$INSTALL_CHOICE" = "1" || "$INSTALL_CHOICE" = "3" ]]; then
+    if $INSTALL_TUIC; then
         read -rp "$(printf "${C_GREEN}请输入 TUIC 端口 (默认 443): ${C_NC}")" TUIC_PORT
         TUIC_PORT=${TUIC_PORT:-443}
         echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
     fi
 
     # Argo 配置
-    if [[ "$INSTALL_CHOICE" = "2" || "$INSTALL_CHOICE" = "3" ]]; then
+    if $INSTALL_ARGO; then
         read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
         if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
             ARGO_PROTOCOL='vless'
@@ -157,7 +151,7 @@ do_install() {
     fi
 
     # VLESS AnyTLS 配置
-    if [[ "$INSTALL_CHOICE" = "4" ]]; then
+    if $INSTALL_ANYTLS; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
         ANYTLS_PORT=${ANYTLS_PORT:-443}
 
@@ -172,6 +166,14 @@ do_install() {
     [ -n "$SERVER_IPV6" ] && echo "SERVER_IPV6='${SERVER_IPV6}'" >> "$VARS_PATH"
 
     load_variables
+    INSTALL_TUIC=false
+    INSTALL_ARGO=false
+    INSTALL_ANYTLS=false
+
+    [[ "$INSTALL_CHOICE" =~ (^|,)1(,|$) ]] && INSTALL_TUIC=true
+    [[ "$INSTALL_CHOICE" =~ (^|,)2(,|$) ]] && INSTALL_ARGO=true
+    [[ "$INSTALL_CHOICE" =~ (^|,)3(,|$) ]] && INSTALL_ANYTLS=true
+    
 
     print_msg "\n--- 准备依赖 ---" blue
     cpu_arch=$(get_cpu_arch)
