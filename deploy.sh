@@ -106,11 +106,12 @@ is_selected() {
 
 # --- 证书申请逻辑 ---
 install_acme() {
-    if [ ! -d "$HOME/.acme.sh" ]; then
+    if [ ! -f "$HOME/.acme.sh/acme.sh" ]; then
         print_msg "正在安装 acme.sh..." yellow
         curl https://get.acme.sh | sh
-        # 重新加载环境
-        [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
+        # 强制使用当前用户路径
+        export ACME_HOME="$HOME/.acme.sh"
+        export PATH="$ACME_HOME:$PATH"
     fi
 }
 
@@ -139,7 +140,7 @@ issue_cf_cert() {
     fi
 
     print_msg "正在通过 Cloudflare DNS 申请证书..." yellow
-    "$HOME/.acme.sh/acme.sh" --issue \
+    "$HOME/.acme.sh/acme.sh" --issue --dns dns_cf -d "${ANYTLS_DOMAIN}" --keylength ec-256
         --dns dns_cf \
         -d "${ANYTLS_DOMAIN}" \
         --keylength ec-256
