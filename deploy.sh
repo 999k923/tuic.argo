@@ -275,6 +275,7 @@ cat > "$CONFIG_PATH" <<EOF
       "type": "vless",
       "tag": "vless-anytls",
       "listen": "::",
+      "dual_stack": true,
       "listen_port": ${ANYTLS_PORT},
       "users": [
         {
