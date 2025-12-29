@@ -116,13 +116,14 @@ do_install() {
     print_msg "  1) 仅安装 TUIC"
     print_msg "  2) 仅安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 同时安装 TUIC 和 Argo 隧道"
+    print_msg "  4) 仅安装 VLESS + AnyTLS"
     read -rp "$(printf "${C_GREEN}请输入选项 [1-3]: ${C_NC}")" INSTALL_CHOICE
 
     mkdir -p "$AGSBX_DIR"
     : > "$VARS_PATH"
 
     # --- 交互式配置 ---
-    if [[ "$INSTALL_CHOICE" =~ ^[1-3]$ ]]; then
+    if [[ "$INSTALL_CHOICE" =~ ^[1-4]$ ]]; then
         echo "INSTALL_CHOICE=$INSTALL_CHOICE" >> "$VARS_PATH"
     else
         print_msg "无效选项，安装已取消。" red
@@ -154,6 +155,17 @@ do_install() {
         echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
         echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
     fi
+    # VLESS AnyTLS 配置
+    if [ "$INSTALL_CHOICE" = "4" ]; then
+        read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
+        ANYTLS_PORT=${ANYTLS_PORT:-443}
+
+        read -rp "$(printf "${C_GREEN}请输入 AnyTLS 域名 (如 www.example.com): ${C_NC}")" ANYTLS_DOMAIN
+
+        echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
+        echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
+   fi
+ 
 
     # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
@@ -243,6 +255,41 @@ EOF
   "outbounds":[{"type":"direct","tag":"direct"}]
 }
 EOF
+elif [ "$INSTALL_CHOICE" = "4" ]; then
+cat > "$CONFIG_PATH" <<EOF
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-anytls",
+      "listen": "::",
+      "listen_port": ${ANYTLS_PORT},
+      "users": [
+        {
+          "uuid": "${UUID}"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${ANYTLS_DOMAIN}",
+        "alpn": ["h2", "http/1.1"],
+        "certificate_path": "${CERT_PATH}",
+        "key_path": "${KEY_PATH}"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ]
+}
+EOF
     fi
     print_msg "配置文件已生成: $CONFIG_PATH" green
 }
@@ -316,6 +363,15 @@ do_list() {
             echo "vmess://${vmess_base64}"
         fi
     fi
+    # --- VLESS AnyTLS ---
+if [ "$INSTALL_CHOICE" = "4" ]; then
+    print_msg "--- VLESS + AnyTLS IPv4 ---" yellow
+    echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-ipv4-${hostname}"
+
+    print_msg "--- VLESS + AnyTLS IPv6 ---" yellow
+    echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2,http/1.1&fp=chrome#anytls-ipv6-${hostname}"
+fi
+
 }
 
 
