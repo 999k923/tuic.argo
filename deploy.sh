@@ -295,39 +295,15 @@ do_install() {
     print_msg "\n--- 准备依赖 ---" blue
     cpu_arch=$(get_cpu_arch)
 
-  # 下载 sing-box
-if [ ! -f "$SINGBOX_PATH" ]; then
-    # 判断 CPU 架构
-    arch=$(uname -m)
-    case "$arch" in
-        x86_64) cpu_arch="amd64" ;;
-        i386|i686) cpu_arch="386" ;;
-        aarch64) cpu_arch="arm64" ;;
-        armv7l) cpu_arch="armv7" ;;
-        armv6l) cpu_arch="armv6" ;;
-        *) echo "Unsupported architecture: $arch"; exit 1 ;;
-    esac
-
-    SINGBOX_VERSION="1.13.0-alpha.34"
-    SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v$SINGBOX_VERSION/sing-box-$SINGBOX_VERSION-linux-$cpu_arch.tar.gz"
-    TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
-
-    echo "Downloading sing-box from $SINGBOX_URL..."
-    download_file "$SINGBOX_URL" "$TMP_TAR"
-
-    tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
-    mv "$AGSBX_DIR/sing-box-$SINGBOX_VERSION-linux-$cpu_arch/sing-box" "$SINGBOX_PATH"
-
-    # 设置可执行权限
-    chmod +x "$SINGBOX_PATH"
-
-    # 清理
-    rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-$SINGBOX_VERSION-linux-$cpu_arch"
-
-    echo "sing-box installed at $SINGBOX_PATH"
-fi
-
-
+    # 下载 sing-box
+    if [ ! -f "$SINGBOX_PATH" ]; then
+        SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-${cpu_arch}.tar.gz"
+        TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
+        download_file "$SINGBOX_URL" "$TMP_TAR"
+        tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
+        mv "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
+        rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}"
+    fi
 
     # 下载 cloudflared
     if is_selected 2 && [ ! -f "$CLOUDFLARED_PATH" ]; then
@@ -401,26 +377,11 @@ do_generate_config() {
     if is_selected 3; then
         inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2"],"certificate_path":"%s","key_path":"%s"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
+
     # VLESS Reality Vision Inbound (最优形态)
     if is_selected 4; then
-    inbounds+=("$(printf '{
-      \"type\": \"vless\",
-      \"tag\": \"vless-reality\",
-      \"listen\": \"0.0.0.0\",
-      \"listen_port\": %s,
-      \"users\": [{\"uuid\": \"%s\"}],
-      \"tls\": {
-        \"enabled\": true,
-        \"reality\": {
-          \"enabled\": true,
-          \"handshake\": {\"server\": \"%s\", \"server_port\": 443},
-          \"private_key\": \"%s\",
-          \"short_id\": [\"%s\"]
-        }
-      }
-    }' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
-fi
-
+        inbounds+=("$(printf '{"type":"vless","tag":"vless-reality","listen":"0.0.0.0","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"reality":{"enabled":true,"handshake":{"server":"%s","server_port":443},"private_key":"%s","short_id":["%s"]}}}' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
+    fi
 
     # 拼接 inbounds
     local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
@@ -516,9 +477,8 @@ do_list() {
 
     if is_selected 4; then
         print_msg "--- VLESS + Reality + Vision (IPv4 Only) ---" yellow
-        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}&flow=xtls-rprx-vision#reality-ipv4-${hostname}"
+        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}#reality-ipv4-${hostname}"
     fi
-
 }
 
 do_restart() { do_stop; sleep 1; do_start; }
