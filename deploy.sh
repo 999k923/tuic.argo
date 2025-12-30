@@ -325,17 +325,31 @@ do_install() {
         fi
     fi
 
-    # 下载 Xray 内核 (如果需要 )
-    if is_selected 4 && [ ! -f "$XRAY_PATH" ]; then
-        xray_cpu_arch=$(get_cpu_arch)
-        XRAY_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${xray_cpu_arch}.zip"
-        TMP_ZIP="$AGSBX_DIR/xray.zip"
-        download_file "$XRAY_URL" "$TMP_ZIP"
-        unzip -o "$TMP_ZIP" -d "$AGSBX_DIR"
-        chmod +x "$XRAY_PATH"
-        rm -f "$TMP_ZIP"
-        print_msg "Xray 内核已下载完成" green
-    fi
+    # 下载 Xray 内核 (如果需要)
+if is_selected 4 && [ ! -f "$XRAY_PATH" ]; then
+    xray_cpu_arch=$(get_cpu_arch)
+    
+    # 最新稳定版本，可替换成具体版本号
+    XRAY_VERSION="25.12.8"
+    
+    XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-${xray_cpu_arch}.zip"
+    TMP_ZIP="$AGSBX_DIR/xray.zip"
+    
+    download_file "$XRAY_URL" "$TMP_ZIP"
+    
+    # 解压到临时目录
+    unzip -o "$TMP_ZIP" -d "$AGSBX_DIR/xray_tmp"
+    
+    # 移动 xray 可执行文件
+    mv "$AGSBX_DIR/xray_tmp/xray" "$XRAY_PATH"
+    chmod +x "$XRAY_PATH"
+    
+    # 清理临时文件
+    rm -rf "$TMP_ZIP" "$AGSBX_DIR/xray_tmp"
+    
+    print_msg "Xray 内核已下载完成" green
+fi
+
 
     # 下载 cloudflared
     if is_selected 2 && [ ! -f "$CLOUDFLARED_PATH" ]; then
