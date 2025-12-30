@@ -372,22 +372,24 @@ do_install() {
     print_msg "生成 UUID: $UUID" yellow
 
     # 生成 Reality 密钥对 + short_id
-    if is_selected 4; then
-        REALITY_KEYPAIR=$("$XRAY_PATH" x25519)
-        REALITY_PRIVATE_KEY=$(echo "$REALITY_KEYPAIR" | awk '/Private key/ {print $3}')
-        REALITY_PUBLIC_KEY=$(echo "$REALITY_KEYPAIR" | awk '/Public key/ {print $3}')
-        
-        if ! command -v openssl >/dev/null 2>&1; then
-            print_msg "⚠️ openssl 未安装，无法生成 short_id，请先安装 openssl" red
-            exit 1
-        fi
-        REALITY_SHORT_ID=$(openssl rand -hex 8)
-
-        echo "REALITY_PRIVATE_KEY='${REALITY_PRIVATE_KEY}'" >> "$VARS_PATH"
-        echo "REALITY_PUBLIC_KEY='${REALITY_PUBLIC_KEY}'" >> "$VARS_PATH"
-        echo "REALITY_SHORT_ID='${REALITY_SHORT_ID}'" >> "$VARS_PATH"
-        print_msg "生成 Reality 密钥对和 short_id" yellow
+if is_selected 4; then
+    REALITY_KEYPAIR=$("$XRAY_PATH" x25519 2>&1)
+    REALITY_PRIVATE_KEY=$(echo "$REALITY_KEYPAIR" | awk '/Private key/ {print $3}')
+    REALITY_PUBLIC_KEY=$(echo "$REALITY_KEYPAIR" | awk '/Public key/ {print $3}')
+    
+    if [ -z "$REALITY_PRIVATE_KEY" ] || [ -z "$REALITY_PUBLIC_KEY" ]; then
+        print_msg "⚠️ Reality 密钥生成失败，请确认 Xray 内核可执行并支持 x25519" red
+        exit 1
     fi
+
+    REALITY_SHORT_ID=$(openssl rand -hex 8)
+
+    echo "REALITY_PRIVATE_KEY='${REALITY_PRIVATE_KEY}'" >> "$VARS_PATH"
+    echo "REALITY_PUBLIC_KEY='${REALITY_PUBLIC_KEY}'" >> "$VARS_PATH"
+    echo "REALITY_SHORT_ID='${REALITY_SHORT_ID}'" >> "$VARS_PATH"
+    print_msg "生成 Reality 密钥对和 short_id" yellow
+fi
+
 
     # 生成 sing-box/xray 配置
     do_generate_config
