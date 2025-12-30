@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ======================================================================
-# All-in-One TUIC & VLESS/VMess+Argo/Reality 管理脚本 (完美加固版)
+# All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (完美加固版)
 # 支持交互式安装、IPv4/IPv6 自动检测、Cloudflare 证书自动化
 # ======================================================================
 
@@ -16,10 +16,8 @@ C_NC='\033[0m'
 HOME_DIR=$(eval echo ~)
 AGSBX_DIR="$HOME_DIR/agsbx"
 SINGBOX_PATH="$AGSBX_DIR/sing-box"
-XRAY_PATH="$AGSBX_DIR/xray"
 CLOUDFLARED_PATH="$AGSBX_DIR/cloudflared"
-SB_CONFIG="$AGSBX_DIR/sb.json"
-XRAY_CONFIG="$AGSBX_DIR/xray.json"
+CONFIG_PATH="$AGSBX_DIR/sb.json"
 CERT_PATH="$AGSBX_DIR/cert.pem"
 KEY_PATH="$AGSBX_DIR/private.key"
 VARS_PATH="$AGSBX_DIR/variables.conf"
@@ -37,20 +35,11 @@ print_msg() {
 
 get_cpu_arch() {
     case "$(uname -m)" in
-        x86_64) echo "64";; # Xray 使用 64
-        aarch64) echo "arm64-v8a";; # Xray 使用 arm64-v8a
-        *) print_msg "错误: 不支持的 CPU 架构 $(uname -m)" red; exit 1;;
-    esac
-}
-
-get_singbox_cpu_arch() {
-    case "$(uname -m)" in
         x86_64) echo "amd64";;
         aarch64) echo "arm64";;
         *) print_msg "错误: 不支持的 CPU 架构 $(uname -m)" red; exit 1;;
     esac
 }
-
 
 download_file() {
     local url="$1"
@@ -62,8 +51,8 @@ download_file() {
         wget -q --show-progress -O "$dest" "$url"
     fi
     if [ $? -ne 0 ]; then print_msg "下载失败: $url" red; exit 1; fi
-    # 不在这里设置权限，因为 zip 文件不需要
-    print_msg "$(basename "$dest") 下载成功。" green
+    chmod +x "$dest"
+    print_msg "$(basename "$dest") 下载并设置权限成功。" green
 }
 
 load_variables() {
@@ -74,9 +63,9 @@ load_variables() {
 get_server_ip() {
     local ipv4
     if command -v curl >/dev/null 2>&1; then
-        ipv4=$(curl -4 -s https://icanhazip.com  )
+        ipv4=$(curl -4 -s https://icanhazip.com )
     else
-        ipv4=$(wget -4 -qO- https://icanhazip.com  )
+        ipv4=$(wget -4 -qO- https://icanhazip.com )
     fi
     echo "$ipv4"
 }
@@ -106,7 +95,7 @@ get_server_ipv6() {
             return
         fi
     done
-    echo ""
+    echo "Unable to retrieve IPv6 address"
 }
 
 # 检查选项是否被选中
@@ -163,7 +152,7 @@ install_acme() {
         curl -L https://github.com/acmesh-official/acme.sh/archive/master.tar.gz -o master.tar.gz
         tar -xzf master.tar.gz --strip-components=1
 
-        # 如果已经存在 acme.sh ，用升级方式安装
+        # 如果已经存在 acme.sh，用升级方式安装
         if [ -f "./acme.sh" ]; then
             chmod +x ./acme.sh
             ./acme.sh --upgrade --auto-upgrade
@@ -231,23 +220,16 @@ issue_cf_cert( ) {
 # --- 核心安装 ---
 do_install() {
     print_msg "--- 节点安装向导 ---" blue
-    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,3):" yellow
-    print_msg "  1) 安装 TUIC (sing-box 内核)"
-    print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess, sing-box 内核)"
-    print_msg "  3) 安装 VLESS + AnyTLS (使用 CF 证书, sing-box 内核)"
-    print_msg "  4) 安装 VLESS + Reality + Vision (强抗封 IP, Xray 内核)"
+    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,2,3):" yellow
+    print_msg "  1) 安装 TUIC"
+    print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
+    print_msg "  3) 安装 VLESS + AnyTLS (使用 CF 证书)"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
     
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
-    if [[ ! "$INSTALL_CHOICE" =~ ^[1234](,[1234])*$ ]]; then
-        print_msg "无效选项，请输入 1, 2, 3, 4 中的一个或多个（用逗号分隔）。" red
-        exit 1
-    fi
-
-    # 禁止 Reality 与 Argo 同时使用
-    if is_selected 4 && is_selected 2; then
-        print_msg "Reality 不能与 Argo 同时选择" red
+    if [[ ! "$INSTALL_CHOICE" =~ ^[123](,[123])*$ ]]; then
+        print_msg "无效选项，请输入 1, 2, 3 中的一个或多个（用逗号分隔）。" red
         exit 1
     fi
 
@@ -291,18 +273,6 @@ do_install() {
         echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
     fi
 
-    # VLESS Reality 配置
-    if is_selected 4; then
-        read -rp "$(printf "${C_GREEN}请输入 Reality 监听端口 (默认 443): ${C_NC}")" REALITY_PORT
-        REALITY_PORT=${REALITY_PORT:-443}
-
-        print_msg "推荐 SNI: www.cloudflare.com / www.apple.com / www.microsoft.com" yellow
-        read -rp "$(printf "${C_GREEN}请输入 Reality 伪装 SNI: ${C_NC}")" REALITY_SNI
-
-        echo "REALITY_PORT=${REALITY_PORT}" >> "$VARS_PATH"
-        echo "REALITY_SNI='${REALITY_SNI}'" >> "$VARS_PATH"
-    fi
-
     # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
     [ -n "$SERVER_IPV6" ] && echo "SERVER_IPV6='${SERVER_IPV6}'" >> "$VARS_PATH"
@@ -310,53 +280,22 @@ do_install() {
     load_variables
 
     print_msg "\n--- 准备依赖 ---" blue
-    
-    # 下载 sing-box (如果需要)
-    if is_selected 1 || is_selected 2 || is_selected 3; then
-        if [ ! -f "$SINGBOX_PATH" ]; then
-            singbox_cpu_arch=$(get_singbox_cpu_arch)
-            SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-${singbox_cpu_arch}.tar.gz"
-            TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
-            download_file "$SINGBOX_URL" "$TMP_TAR"
-            tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
-            mv "$AGSBX_DIR/sing-box-1.9.0-linux-${singbox_cpu_arch}/sing-box" "$SINGBOX_PATH"
-            chmod +x "$SINGBOX_PATH"
-            rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.9.0-linux-${singbox_cpu_arch}"
-        fi
+    cpu_arch=$(get_cpu_arch)
+
+    # 下载 sing-box
+    if [ ! -f "$SINGBOX_PATH" ]; then
+        SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-${cpu_arch}.tar.gz"
+        TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
+        download_file "$SINGBOX_URL" "$TMP_TAR"
+        tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
+        mv "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
+        rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}"
     fi
-
-    # 下载 Xray 内核 (如果需要)
-if is_selected 4 && [ ! -f "$XRAY_PATH" ]; then
-    xray_cpu_arch=$(get_cpu_arch)
-    
-    # 最新稳定版本，可替换成具体版本号
-    XRAY_VERSION="25.12.8"
-    
-    XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-${xray_cpu_arch}.zip"
-    TMP_ZIP="$AGSBX_DIR/xray.zip"
-    
-    download_file "$XRAY_URL" "$TMP_ZIP"
-    
-    # 解压到临时目录
-    unzip -o "$TMP_ZIP" -d "$AGSBX_DIR/xray_tmp"
-    
-    # 移动 xray 可执行文件
-    mv "$AGSBX_DIR/xray_tmp/xray" "$XRAY_PATH"
-    chmod +x "$XRAY_PATH"
-    
-    # 清理临时文件
-    rm -rf "$TMP_ZIP" "$AGSBX_DIR/xray_tmp"
-    
-    print_msg "Xray 内核已下载完成" green
-fi
-
 
     # 下载 cloudflared
     if is_selected 2 && [ ! -f "$CLOUDFLARED_PATH" ]; then
-        singbox_cpu_arch=$(get_singbox_cpu_arch )
-        CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${singbox_cpu_arch}"
+        CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cpu_arch}"
         download_file "$CLOUDFLARED_URL" "$CLOUDFLARED_PATH"
-        chmod +x "$CLOUDFLARED_PATH"
     fi
 
     # TLS 证书处理
@@ -364,49 +303,22 @@ fi
         issue_cf_cert
     elif is_selected 1; then
         if ! command -v openssl >/dev/null 2>&1; then
-            print_msg "⚠️ openssl 未安装  ，请先安装 openssl" red
+            print_msg "⚠️ openssl 未安装 ，请先安装 openssl" red
             exit 1
         fi
-        openssl ecparam -genkey -name prime256v1 -out "$KEY_PATH" >/dev/null 2>&1
-        openssl req -new -x509 -days 36500 -key "$KEY_PATH" -out "$CERT_PATH" -subj "/CN=www.bing.com" >/dev/null 2>&1
+        print_msg "正在生成 TUIC 自签名证书..." yellow
+        openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \
+            -keyout "$KEY_PATH" -out "$CERT_PATH" \
+            -subj "/CN=www.bing.com" -days 36500 >/dev/null 2>&1
         print_msg "已生成 TUIC 自签名证书。" yellow
     fi
 
     # 生成 UUID
-    # 优先使用 sing-box 生成，如果不存在则使用 xray
-    if [ -f "$SINGBOX_PATH" ]; then
-        UUID=$($SINGBOX_PATH generate uuid)
-    elif [ -f "$XRAY_PATH" ]; then
-        UUID=$($XRAY_PATH uuid)
-    else
-        print_msg "错误: sing-box 或 xray 内核均未找到，无法生成 UUID" red
-        exit 1
-    fi
+    UUID=$($SINGBOX_PATH generate uuid)
     echo "UUID='${UUID}'" >> "$VARS_PATH"
     print_msg "生成 UUID: $UUID" yellow
 
-    # 生成 Reality 密钥对
-print_msg "正在生成 Reality 密钥对..." yellow
-REALITY_KEYPAIR=$($XRAY_PATH x25519)
-REALITY_PRIVATE_KEY=$(echo "$REALITY_KEYPAIR" | grep 'PrivateKey' | awk '{print $2}')
-REALITY_PUBLIC_KEY=$(echo "$REALITY_KEYPAIR" | grep 'Hash32' | awk '{print $2}')
-
-
-if [ -z "$REALITY_PRIVATE_KEY" ] || [ -z "$REALITY_PUBLIC_KEY" ]; then
-    print_msg "⚠️ Reality 密钥生成失败，请手动运行: $XRAY_PATH x25519" red
-    exit 1
-fi
-
-REALITY_SHORT_ID=$(openssl rand -hex 8)
-
-echo "REALITY_PRIVATE_KEY='${REALITY_PRIVATE_KEY}'" >> "$VARS_PATH"
-echo "REALITY_PUBLIC_KEY='${REALITY_PUBLIC_KEY}'" >> "$VARS_PATH"
-echo "REALITY_SHORT_ID='${REALITY_SHORT_ID}'" >> "$VARS_PATH"
-print_msg "生成 Reality 密钥对和 short_id" green
-
-
-
-    # 生成 sing-box/xray 配置
+    # 生成 sing-box 配置
     do_generate_config
 
     # 启动服务
@@ -417,87 +329,44 @@ print_msg "生成 Reality 密钥对和 short_id" green
 
 do_generate_config() {
     load_variables
-    
-    # sing-box 配置 (选项 1, 2, 3)
-    if is_selected 1 || is_selected 2 || is_selected 3; then
-        local sb_inbounds=()
-        # TUIC Inbound (sing-box)
-        if is_selected 1; then
-            sb_inbounds+=("$(printf '{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":%s,"users":[{"uuid":"%s","password":"%s"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"%s","key_path":"%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")")
-        fi
-        # Argo Inbound (sing-box)
-        if is_selected 2; then
-            if [ "$ARGO_PROTOCOL" = "vless" ]; then
-                sb_inbounds+=("$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")")
-            else
-                sb_inbounds+=("$(printf '{"type":"vmess","tag":"vmess-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")")
-            fi
-        fi
-        # AnyTLS Inbound (sing-box)
-        if is_selected 3; then
-            sb_inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2"],"certificate_path":"%s","key_path":"%s"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
-        fi
-        
-        local sb_inbounds_json=$(IFS=,; echo "${sb_inbounds[*]}")
-        cat > "$SB_CONFIG" <<EOF
-{
-  "log": { "level": "info", "timestamp": true },
-  "inbounds": [${sb_inbounds_json}],
-  "outbounds": [{ "type": "direct", "tag": "direct" }]
-}
-EOF
-        print_msg "sing-box 配置文件已生成: $SB_CONFIG" green
+    local inbounds=()
+
+    # TUIC Inbound
+    if is_selected 1; then
+        inbounds+=("$(printf '{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":%s,"users":[{"uuid":"%s","password":"%s"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"%s","key_path":"%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")")
     fi
 
-    # Xray 配置 (选项 4)
-    if is_selected 4; then
-        cat > "$XRAY_CONFIG" <<EOF
+    # Argo Inbound
+    if is_selected 2; then
+        if [ "$ARGO_PROTOCOL" = "vless" ]; then
+            inbounds+=("$(printf '{"type":"vless","tag":"vless-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s"}],"transport":{"type":"ws","path":"/%s-vl"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")")
+        else
+            inbounds+=("$(printf '{"type":"vmess","tag":"vmess-in","listen":"127.0.0.1","listen_port":%s,"users":[{"uuid":"%s","alterId":0}],"transport":{"type":"ws","path":"/%s-vm"}}' "$ARGO_LOCAL_PORT" "$UUID" "$UUID")")
+        fi
+    fi
+
+    # AnyTLS Inbound (优化 ALPN 减少指纹)
+    if is_selected 3; then
+        inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2"],"certificate_path":"%s","key_path":"%s"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
+    fi
+
+    # 拼接 inbounds
+    local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
+
+    cat > "$CONFIG_PATH" <<EOF
 {
-  "log": { "loglevel": "warning" },
-  "inbounds": [
-    {
-      "listen": "::",
-      "port": ${REALITY_PORT},
-      "protocol": "vless",
-      "settings": {
-        "clients": [
-          { "id": "${UUID}", "flow": "xtls-rprx-vision" }
-        ],
-        "decryption": "none"
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "show": false,
-          "dest": "${REALITY_SNI}:443",
-          "xver": 0,
-          "serverNames": ["${REALITY_SNI}"],
-          "privateKey": "${REALITY_PRIVATE_KEY}",
-          "shortIds": ["${REALITY_SHORT_ID}"]
-        }
-      }
-    }
-  ],
-  "outbounds": [{ "protocol": "freedom", "tag": "direct" }]
+  "log": {"level": "info", "timestamp": true},
+  "inbounds": [${inbounds_json}],
+  "outbounds": [{"type": "direct", "tag": "direct"}]
 }
 EOF
-        print_msg "Xray 配置文件已生成: $XRAY_CONFIG" green
-    fi
+    print_msg "配置文件已生成: $CONFIG_PATH" green
 }
 
 do_start() {
     load_variables
     do_stop
-    
-    # 根据选项决定启动哪个核心
-    if is_selected 4; then
-        nohup "$XRAY_PATH" run -c "$XRAY_CONFIG" > "$AGSBX_DIR/xray.log" 2>&1 &
-    fi
-    if is_selected 1 || is_selected 2 || is_selected 3; then
-        nohup "$SINGBOX_PATH" run -c "$SB_CONFIG" > "$AGSBX_DIR/sing-box.log" 2>&1 &
-    fi
-
+    nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
     if is_selected 2; then
         if [ -n "$ARGO_TOKEN" ]; then
             cat > "$AGSBX_DIR/config.yml" <<EOF
@@ -515,9 +384,8 @@ EOF
     print_msg "服务已启动" green
 }
 
-do_stop(  ) {
+do_stop( ) {
     pkill -f "$SINGBOX_PATH"
-    pkill -f "$XRAY_PATH"
     pkill -f "$CLOUDFLARED_PATH"
     print_msg "服务已停止" green
 }
@@ -536,12 +404,10 @@ do_list() {
 
     if is_selected 1; then
         tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
-        print_msg "--- TUIC IPv4 (sing-box) ---" yellow
+        print_msg "--- TUIC IPv4 ---" yellow
         echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-ipv4-${hostname}"
-        if [ -n "$server_ipv6" ]; then
-            print_msg "--- TUIC IPv6 (sing-box) ---" yellow
-            echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
-        fi
+        print_msg "--- TUIC IPv6 ---" yellow
+        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
     fi
 
     if is_selected 2; then
@@ -549,19 +415,19 @@ do_list() {
         if [ -z "$ARGO_TOKEN" ]; then
             print_msg "等待临时 Argo 域名..." yellow
             for i in {1..10}; do
-                current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///'  )
+                current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///' )
                 [ -n "$current_argo_domain" ] && break
                 sleep 2
             done
         fi
         if [ -n "$current_argo_domain" ]; then
             if [ "$ARGO_PROTOCOL" = "vless" ]; then
-                echo "--- VLESS + Argo (TLS, sing-box) ---" yellow
+                echo "--- VLESS + Argo (TLS) ---" yellow
                 echo "vless://${UUID}@cdns.doon.eu.org:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
             else
                 vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"cdns.doon.eu.org","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
                 vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
-                echo "--- VMess + Argo (TLS, sing-box) ---" yellow
+                echo "--- VMess + Argo (TLS) ---" yellow
                 echo "vmess://${vmess_base64}"
             fi
         else
@@ -570,16 +436,10 @@ do_list() {
     fi
 
     if is_selected 3; then
-        print_msg "--- VLESS + AnyTLS (sing-box) ---" yellow
+        print_msg "--- VLESS + AnyTLS ---" yellow
+        # 优化 ALPN 仅保留 h2
         echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-${hostname}"
-        if [ -n "$server_ipv6" ]; then
-            echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-ipv6-${hostname}"
-        fi
-    fi
-
-    if is_selected 4; then
-        print_msg "--- VLESS + Reality + Vision (IPv4 Only, Xray) ---" yellow
-        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}&flow=xtls-rprx-vision#reality-ipv4-${hostname}"
+        echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-${hostname}"
     fi
 }
 
@@ -594,7 +454,7 @@ do_uninstall() {
 }
 
 show_help() {
-    print_msg "All-in-One TUIC & VLESS/VMess+Argo/Reality 管理脚本 (完美加固版)" blue
+    print_msg "All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (完美加固版)" blue
     echo "用法: bash $0 [命令]"
     echo "命令: install | list | start | stop | restart | uninstall | help"
 }
