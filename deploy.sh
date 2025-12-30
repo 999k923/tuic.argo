@@ -301,8 +301,8 @@ do_install() {
         TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
         download_file "$SINGBOX_URL" "$TMP_TAR"
         tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
-        mv "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
-        rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}"
+        mv "$AGSBX_DIR/sing-box-1.13.0-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
+        rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.13.0-linux-${cpu_arch}"
     fi
 
     # 下载 cloudflared
