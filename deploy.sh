@@ -110,7 +110,7 @@ install_acme() {
     print_msg "正在检查并补齐证书申请依赖..." yellow
     local deps=("perl" "socat")
     if command -v apt >/dev/null 2>&1; then
-        sudo apt update >/dev/null 2>&1
+        sudo apt update -y >/dev/null 2>&1
         for dep in "${deps[@]}"; do
             if ! command -v "$dep" >/dev/null 2>&1; then
                 sudo apt install -y "$dep" >/dev/null 2>&1
@@ -130,30 +130,41 @@ install_acme() {
         fi
     fi
 
-    # 2. 启动并启用 cron 服务，确保续期任务运行
+    # 2. 启动并启用 cron 服务
     if command -v systemctl >/dev/null 2>&1; then
         sudo systemctl enable cron >/dev/null 2>&1 || sudo systemctl enable cronie >/dev/null 2>&1
         sudo systemctl start cron >/dev/null 2>&1 || sudo systemctl start cronie >/dev/null 2>&1
     fi
 
-    # 3. acme.sh 安装兜底修复：确保 crontab -l 100% 成功
+    # 3. crontab 兜底
     if ! crontab -l >/dev/null 2>&1; then
         print_msg "crontab 不可用，创建空 crontab 作为兜底..." yellow
         (crontab -l 2>/dev/null; echo "") | crontab -
     fi
 
-    # 4. 安装 acme.sh (手动下载 tar.gz)
+    # 4. 安装 acme.sh
     if [ ! -x "$HOME/.acme.sh/acme.sh" ]; then
-    print_msg "正在安装 acme.sh (手动下载 tar.gz)..." yellow
-    mkdir -p "$HOME/.acme.sh"
-    cd "$HOME/.acme.sh" || exit
-    curl -L https://github.com/acmesh-official/acme.sh/archive/master.tar.gz -o master.tar.gz
-    tar -xzf master.tar.gz --strip-components=1
-    ./acme.sh --install --force
-    [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
-    print_msg "acme.sh 安装完成" green
+        print_msg "正在安装 acme.sh (手动下载 tar.gz)..." yellow
+        mkdir -p "$HOME/.acme.sh"
+        cd "$HOME/.acme.sh" || exit
+
+        # 下载并解压
+        curl -L https://github.com/acmesh-official/acme.sh/archive/master.tar.gz -o master.tar.gz
+        tar -xzf master.tar.gz --strip-components=1
+
+        # 如果已经存在 acme.sh，用升级方式安装
+        if [ -f "./acme.sh" ]; then
+            chmod +x ./acme.sh
+            ./acme.sh --upgrade --auto-upgrade
+        else
+            ./acme.sh --install --force
+        fi
+
+        [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
+        print_msg "acme.sh 安装完成" green
     fi
 }
+
 
 issue_cf_cert( ) {
     install_acme
