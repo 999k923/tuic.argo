@@ -297,7 +297,7 @@ do_install() {
 
     # 下载 sing-box
     if [ ! -f "$SINGBOX_PATH" ]; then
-        SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-${cpu_arch}.tar.gz"
+        SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.13.0/sing-box-1.13.0-linux-${cpu_arch}.tar.gz"
         TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
         download_file "$SINGBOX_URL" "$TMP_TAR"
         tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
@@ -379,9 +379,11 @@ do_generate_config() {
     fi
 
     # VLESS Reality Vision Inbound (最优形态)
+    # VLESS Reality Vision Inbound (最优形态)
     if is_selected 4; then
-        inbounds+=("$(printf '{"type":"vless","tag":"vless-reality","listen":"0.0.0.0","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"reality":{"enabled":true,"handshake":{"server":"%s","server_port":443},"private_key":"%s","short_id":["%s"]}}}' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
+        inbounds+=("$(printf '{"type":"vless","tag":"vless-reality","listen":"0.0.0.0","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"reality":{"enabled":true,"handshake":{"server":"%s","server_port":443},"private_key":"%s","short_id":["%s"],"flow":"xtls-rprx-vision"}}}' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
     fi
+
 
     # 拼接 inbounds
     local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
@@ -477,8 +479,9 @@ do_list() {
 
     if is_selected 4; then
         print_msg "--- VLESS + Reality + Vision (IPv4 Only) ---" yellow
-        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}#reality-ipv4-${hostname}"
+        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}&flow=xtls-rprx-vision#reality-ipv4-${hostname}"
     fi
+
 }
 
 do_restart() { do_stop; sleep 1; do_start; }
