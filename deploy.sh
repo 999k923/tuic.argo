@@ -380,12 +380,9 @@ do_generate_config() {
 
     # VLESS Reality Vision Inbound (最优形态)
 if is_selected 4; then
-    # 支持多 SNI
     REALITY_VISION_SNI_LIST=("www.apple.com" "www.microsoft.com" "www.cloudflare.com")
-    
-    # 拼接成 JSON 数组字符串
     VISION_SNI_JSON=$(printf '"%s",' "${REALITY_VISION_SNI_LIST[@]}")
-    VISION_SNI_JSON="[${VISION_SNI_JSON%,}]"  # 去掉最后的逗号并加上 []
+    VISION_SNI_JSON="[${VISION_SNI_JSON%,}]"
 
     inbounds+=("$(printf '{
         \"type\":\"vless\",
@@ -394,11 +391,12 @@ if is_selected 4; then
         \"listen_port\":%s,
         \"users\":[{\"uuid\":\"%s\"}],
         \"tls\":{\"enabled\":true,\"server_name\":\"%s\",\"alpn\":[\"h2\"],
-            \"reality\":{\"enabled\":true,\"handshake\":{\"server\":\"%s\",\"server_port\":443},\"private_key\":\"%s\",\"short_id\":[\"%s\"]},
-            \"vision\":{\"enabled\":true,\"sni\":%s,\"port_range\":[443,8443]}
-        }
+            \"reality\":{\"enabled\":true,\"handshake\":{\"server\":\"%s\",\"server_port\":443},\"private_key\":\"%s\",\"short_id\":[\"%s\"]}
+        },
+        \"transport\":{\"type\":\"vision\",\"vision\":{\"enabled\":true,\"sni\":%s,\"port_range\":[443,8443]}}
     }' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID" "$VISION_SNI_JSON")")
 fi
+
 
 
     # 拼接 inbounds
