@@ -397,8 +397,6 @@ if is_selected 4; then
     }' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID" "$VISION_SNI_JSON")")
 fi
 
-
-
     # 拼接 inbounds
     local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
 
