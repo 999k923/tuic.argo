@@ -387,9 +387,10 @@ fi
 
     # 生成 Reality 密钥对
 print_msg "正在生成 Reality 密钥对..." yellow
-REALITY_KEYPAIR=$($XRAY_PATH x25519 2>/dev/null)
-REALITY_PRIVATE_KEY=$(echo "$REALITY_KEYPAIR" | awk '/Private key/ {print $3}')
-REALITY_PUBLIC_KEY=$(echo "$REALITY_KEYPAIR" | awk '/Public key/ {print $3}')
+REALITY_KEYPAIR=$($XRAY_PATH x25519)
+REALITY_PRIVATE_KEY=$(echo "$REALITY_KEYPAIR" | grep 'PrivateKey' | awk '{print $2}')
+REALITY_PUBLIC_KEY=$(echo "$REALITY_KEYPAIR" | grep 'Hash32' | awk '{print $2}')
+
 
 if [ -z "$REALITY_PRIVATE_KEY" ] || [ -z "$REALITY_PUBLIC_KEY" ]; then
     print_msg "⚠️ Reality 密钥生成失败，请手动运行: $XRAY_PATH x25519" red
