@@ -401,12 +401,25 @@ do_generate_config() {
     if is_selected 3; then
         inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2"],"certificate_path":"%s","key_path":"%s"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
-
-    # VLESS Reality Vision Inbound (最优形态)
     # VLESS Reality Vision Inbound (最优形态)
     if is_selected 4; then
-        inbounds+=("$(printf '{"type":"vless","tag":"vless-reality","listen":"0.0.0.0","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"reality":{"enabled":true,"handshake":{"server":"%s","server_port":443},"private_key":"%s","short_id":["%s"],"flow":"xtls-rprx-vision"}}}' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
-    fi
+    inbounds+=("$(printf '{
+      \"type\": \"vless\",
+      \"tag\": \"vless-reality\",
+      \"listen\": \"0.0.0.0\",
+      \"listen_port\": %s,
+      \"users\": [{\"uuid\": \"%s\"}],
+      \"tls\": {
+        \"enabled\": true,
+        \"reality\": {
+          \"enabled\": true,
+          \"handshake\": {\"server\": \"%s\", \"server_port\": 443},
+          \"private_key\": \"%s\",
+          \"short_id\": [\"%s\"]
+        }
+      }
+    }' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
+fi
 
 
     # 拼接 inbounds
