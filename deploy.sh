@@ -380,8 +380,12 @@ do_generate_config() {
 
     # VLESS Reality Vision Inbound (最优形态)
     if is_selected 4; then
-        inbounds+=("$(printf '{"type":"vless","tag":"vless-reality","listen":"0.0.0.0","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"reality":{"enabled":true,"handshake":{"server":"%s","server_port":443},"private_key":"%s","short_id":["%s"]}}}' "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID")")
+        # 多 SNI 示例，可以根据需要增加
+        REALITY_VISION_SNI_LIST=("www.apple.com" "www.microsoft.com" "www.cloudflare.com")
+        inbounds+=("$(printf '{"type":"vless","tag":"vless-reality-vision","listen":"0.0.0.0","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2"],"reality":{"enabled":true,"handshake":{"server":"%s","server_port":443},"private_key":"%s","short_id":["%s"]},"vision":{"enabled":true,"sni":%s,"port_range":[443,8443]}}}' \
+           "$REALITY_PORT" "$UUID" "$REALITY_SNI" "$REALITY_SNI" "$REALITY_PRIVATE_KEY" "$REALITY_SHORT_ID" "$(printf '%s\n' "${REALITY_VISION_SNI_LIST[@]}" | jq -R . | jq -s .)")")
     fi
+
 
     # 拼接 inbounds
     local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
@@ -476,8 +480,8 @@ do_list() {
     fi
 
     if is_selected 4; then
-        print_msg "--- VLESS + Reality + Vision (IPv4 Only) ---" yellow
-        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}#reality-ipv4-${hostname}"
+        VISION_SNI=$(printf '%s,' "${REALITY_VISION_SNI_LIST[@]}" | sed 's/,$//')
+        echo "vless://${UUID}@${server_ip}:${REALITY_PORT}?encryption=none&security=reality&sni=${REALITY_SNI}&fp=chrome&pbk=${REALITY_PUBLIC_KEY}&sid=${REALITY_SHORT_ID}&vision_sni=${VISION_SNI}#reality-vision-ipv4-${hostname}"
     fi
 }
 
