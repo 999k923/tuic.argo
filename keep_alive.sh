@@ -1,75 +1,65 @@
 #!/bin/bash
 
 # ======================================================================
-#            All-in-One Keep-Alive & Watchdog Script
-#         同时守护 sing-box (sing.sh) 和 xray (x.sh)
+#            守护脚本 (在原版基础上仅增加对 Xray 的保活)
 # ======================================================================
 
-# --- sing-box (sing.sh) 相关路径 ---
+# --- sing-box (from sing.sh) ---
 AGSBX_DIR="/root/agsbx"
 SINGBOX_PATH="$AGSBX_DIR/sing-box"
-SINGBOX_CONFIG_PATH="$AGSBX_DIR/sb.json"
 CLOUDFLARED_PATH="$AGSBX_DIR/cloudflared"
-SING_VARS_PATH="$AGSBX_DIR/variables.conf"
-CLOUDFLARED_CONFIG_YML="$AGSBX_DIR/config.yml"
+CONFIG_PATH="$AGSBX_DIR/sb.json"
+VARS_PATH="$AGSBX_DIR/variables.conf"
+CONFIG_YML="$AGSBX_DIR/config.yml"
 
-# --- xray (x.sh) 相关路径 ---
-XRAY_DIR="/etc/xray"
-XRAY_PATH="/usr/local/bin/xray"
-XRAY_CONFIG_PATH="$XRAY_DIR/config.json"
+# --- xray (from x.sh) ---
+XRAY_CONFIG_PATH="/etc/xray/config.json"
+XRAY_SYSTEMD_SERVICE="xray"
 
-# --- 公共路径 ---
-LOG_DIR="/var/log/vless-manager"
-LOG_FILE="$LOG_DIR/keep_alive.log"
-LAST_RESTART_FILE="$LOG_DIR/last_restart"
+# --- 日志文件 ---
+LOG_FILE="$AGSBX_DIR/keep_alive.log"
 
-# --- 创建日志目录 ---
-mkdir -p "$LOG_DIR"
-
-# --- 加载 sing.sh 的变量 ---
-if [ -f "$SING_VARS_PATH" ]; then
-    source "$SING_VARS_PATH"
+# --- 加载变量 (仅用于 sing-box) ---
+if [ -f "$VARS_PATH" ]; then
+    source "$VARS_PATH"
 fi
 
-# --- 清洗变量里的单引号 (如果存在) ---
+# --- 清洗变量里的单引号 (仅用于 sing-box) ---
 ARGO_TOKEN="${ARGO_TOKEN//\'/}"
 ARGO_DOMAIN="${ARGO_DOMAIN//\'/}"
 ARGO_LOCAL_PORT="${ARGO_LOCAL_PORT//\'/}"
 
-# --- 日志函数 ---
+# --- 日志函数 (您的原版) ---
 log(){
-    # 日志文件大于 10MB 时自动清空
     if [ -f "$LOG_FILE" ] && [ $(stat -c%s "$LOG_FILE") -gt 10485760 ]; then
-        > "$LOG_FILE"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log file rotated." >> "$LOG_FILE"
+        > "$LOG_FILE"   # 清空日志
     fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
-# --- 检查和守护 sing-box ---
+# --- 检查 sing-box (您的原版，无任何改动) ---
 check_singbox(){
-    # 如果 sing-box 配置文件不存在，则认为未安装，直接跳过
-    if [ ! -f "$SINGBOX_CONFIG_PATH" ]; then
+    if [ ! -f "$SINGBOX_PATH" ]; then
+        # log "❌ sing-box 不存在: $SINGBOX_PATH" # 注释掉，如果未安装则不记录日志
+        return
+    fi
+
+    if [ ! -f "$CONFIG_PATH" ]; then
+        # log "❌ 配置文件不存在: $CONFIG_PATH"
         return
     fi
 
     if ! pgrep -f "$SINGBOX_PATH" >/dev/null; then
-        log "🔄 [sing-box] Process not running, attempting to restart..."
-        nohup "$SINGBOX_PATH" run -c "$SINGBOX_CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
-        sleep 2 # 等待启动
-        if pgrep -f "$SINGBOX_PATH" >/dev/null; then
-            log "✅ [sing-box] Restarted successfully."
-        else
-            log "❌ [sing-box] Failed to restart."
-        fi
+        log "🔄 [sing-box] 不在运行，启动中..."
+        nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
+        sleep 2
     fi
 }
 
-# --- 检查和守护 cloudflared (Argo Tunnel) ---
+# --- 检查 cloudflared (您的原版，无任何改动) ---
 check_cloudflared(){
-    # 如果 sing-box 未安装，或者没有选择安装 Argo (is_selected 2)，则跳过
-    # 我们通过检查 ARGO_LOCAL_PORT 是否有值来判断
-    if [ ! -f "$SINGBOX_CONFIG_PATH" ] || [ -z "$ARGO_LOCAL_PORT" ]; then
+    if [ ! -f "$CLOUDFLARED_PATH" ]; then
+        # log "❌ cloudflared 不存在"
         return
     fi
 
@@ -79,49 +69,41 @@ check_cloudflared(){
     fi
 
     if ! pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-        log "🔄 [cloudflared] Process not running, attempting to restart..."
-        
-        # 确保配置文件存在
-        cat > "$CLOUDFLARED_CONFIG_YML" <<EOF
+        log "🔄 [cloudflared] 不在运行，启动中..."
+
+        cat > "$CONFIG_YML" <<EOF
 log-level: info
 ingress:
   - hostname: ${ARGO_DOMAIN}
     service: http://127.0.0.1:${ARGO_LOCAL_PORT}
   - service: http_status:404
 EOF
-        nohup "$CLOUDFLARED_PATH" tunnel --config "$CLOUDFLARED_CONFIG_YML" run --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
+
+        nohup "$CLOUDFLARED_PATH" tunnel --config "$CONFIG_YML" run --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
         sleep 2
-        if pgrep -f "$CLOUDFLARED_PATH" >/dev/null; then
-            log "✅ [cloudflared] Restarted successfully."
-        else
-            log "❌ [cloudflared] Failed to restart."
-        fi
     fi
 }
 
-# --- 检查和守护 xray ---
-check_xray( ){
+# --- 【新增】检查 xray (节点4 ) ---
+check_xray(){
     # 如果 xray 配置文件不存在，则认为未安装，直接跳过
     if [ ! -f "$XRAY_CONFIG_PATH" ]; then
         return
     fi
 
     # xray 是通过 systemd 管理的，所以我们检查 systemd 服务状态
-    if ! systemctl is-active --quiet xray; then
-        log "🔄 [xray] Service is not active, attempting to restart via systemctl..."
-        systemctl restart xray
+    if ! systemctl is-active --quiet "$XRAY_SYSTEMD_SERVICE"; then
+        log "🔄 [xray] 服务不在运行，通过 systemctl 启动中..."
+        systemctl restart "$XRAY_SYSTEMD_SERVICE"
         sleep 2
-        if systemctl is-active --quiet xray; then
-            log "✅ [xray] Service restarted successfully via systemctl."
-        else
-            log "❌ [xray] Failed to restart service via systemctl."
-        fi
     fi
 }
 
-# --- 每日重启任务 ---
+
+# --- 每日重启 (您的原版，稍作修改以同时重启 xray) ---
 daily_restart(){
     TODAY=$(date +%Y-%m-%d)
+    LAST_RESTART_FILE="$AGSBX_DIR/last_restart"
 
     if [ -f "$LAST_RESTART_FILE" ]; then
         LAST=$(cat "$LAST_RESTART_FILE")
@@ -130,37 +112,38 @@ daily_restart(){
     fi
 
     if [ "$TODAY" != "$LAST" ]; then
-        log "⏳ Daily restart triggered. Restarting all services..."
+        log "⏳ 到达每日重启时间，重启所有服务..."
         
         # 重启 sing-box 和 cloudflared (如果已安装)
-        if [ -f "$SINGBOX_CONFIG_PATH" ]; then
+        if [ -f "$SINGBOX_PATH" ]; then
             pkill -f "$SINGBOX_PATH"
             pkill -f "$CLOUDFLARED_PATH"
         fi
         
-        # 重启 xray (如果已安装)
+        # 【新增】重启 xray (如果已安装)
         if [ -f "$XRAY_CONFIG_PATH" ]; then
-            systemctl restart xray
+            systemctl restart "$XRAY_SYSTEMD_SERVICE"
         fi
         
         echo "$TODAY" > "$LAST_RESTART_FILE"
-        log "✅ Daily restart completed."
-        sleep 3 # 等待进程完全关闭
+        sleep 3
     fi
 }
 
-# --- 主循环 ---
-log "🚀 Keep-alive script started. Monitoring services..."
+# --- 主循环 (您的原版，仅增加调用 check_xray) ---
+log "🚀 keep_alive 启动"
 
 while true; do
-    # 每日重启检查优先
-    daily_restart
-
-    # 检查各个服务进程
+    # 检查 sing-box 和 cloudflared
     check_singbox
     check_cloudflared
+    
+    # 【新增】检查 xray
     check_xray
     
-    # 每 30 秒检查一次
-    sleep 30
+    # 每日重启
+    daily_restart
+    
+    # 检查间隔
+    sleep 10
 done
