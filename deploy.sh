@@ -395,6 +395,10 @@ EOF
             nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
         fi
     fi
+      # ✅ 启动 install.sh 的 Xray 节点
+    if [ -f "$AGSBX_DIR/install.sh" ]; then
+        bash "$AGSBX_DIR/install.sh" start
+    fi
     print_msg "服务已启动" green
 }
 
