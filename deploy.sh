@@ -473,7 +473,17 @@ do_restart() { do_stop; sleep 1; do_start; }
 do_uninstall() {
     read -rp "$(printf "${C_YELLOW}确认卸载？将删除所有文件 (y/n): ${C_NC}")" confirm
     [ "$confirm" != "y" ] && print_msg "取消卸载" green && exit 0
+
+    # 停止主服务
     do_stop
+
+    # 调用 install.sh 卸载 VLESS + Vision + Reality
+    if [ -f "$AGSBX_DIR/install.sh" ]; then
+        print_msg "正在卸载 VLESS + Vision + Reality 节点..." yellow
+        bash "$AGSBX_DIR/install.sh" uninstall
+    fi
+
+    # 删除主程序目录
     rm -rf "$AGSBX_DIR"
     print_msg "卸载完成" green
 }
