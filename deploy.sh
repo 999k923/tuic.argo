@@ -455,6 +455,17 @@ do_list() {
         echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-${hostname}"
         echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-${hostname}"
     fi
+    
+    if is_selected 4; then
+        print_msg "--- VLESS + Vision + Reality ---" yellow
+        if [ -f "./install.sh" ]; then
+             reality_uri=$(bash ./install.sh show-uri)
+             echo "$reality_uri"
+        else
+             print_msg "未找到 install.sh，请确认脚本在同一目录下。" red
+        fi
+    fi
+
 }
 
 do_restart() { do_stop; sleep 1; do_start; }
