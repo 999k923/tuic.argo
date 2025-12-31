@@ -166,7 +166,7 @@ install_acme() {
 }
 
 
-issue_cf_cert( ) {
+issue_cf_cert() {
     install_acme
 
     # 安全加固：在写入敏感信息前设置权限
@@ -194,27 +194,40 @@ issue_cf_cert( ) {
         echo "ANYTLS_DOMAIN='${ANYTLS_DOMAIN}'" >> "$VARS_PATH"
     fi
 
-    print_msg "正在通过 Cloudflare DNS 申请证书 (邮箱 + API Key)..." yellow
+    print_msg "正在通过 Cloudflare DNS 申请或验证证书..." yellow
+    # 尝试申请证书，并捕获退出码
     "$HOME/.acme.sh/acme.sh" --issue \
         --dns dns_cf \
         -d "${ANYTLS_DOMAIN}" \
         --keylength ec-256 \
         --server letsencrypt
+    
+    ACME_STATUS=$? # 保存 acme.sh 的退出码
 
-    if [ $? -ne 0 ]; then
-        print_msg "证书申请失败，请检查邮箱、API Key 和域名是否正确。" red
+    # 如果退出码是 0 (新申请成功) 或 2 (跳过)，都继续执行安装证书
+    if [ "$ACME_STATUS" -eq 0 ] || [ "$ACME_STATUS" -eq 2 ]; then
+        print_msg "acme.sh 执行完毕 (状态码: $ACME_STATUS)，开始安装证书到目标路径..." yellow
+        "$HOME/.acme.sh/acme.sh" --install-cert \
+            -d "${ANYTLS_DOMAIN}" \
+            --ecc \
+            --key-file "$KEY_PATH" \
+            --fullchain-file "$CERT_PATH"
+            
+        # 最后检查一次文件是否存在，确保万无一失
+        if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
+            print_msg "Cloudflare 证书已就绪: $CERT_PATH" green
+        else
+            print_msg "错误：证书文件未能成功安装到目标路径。" red
+            exit 1
+        fi
+    else
+        # 如果是其他错误码，则认为是真正的失败
+        print_msg "证书申请失败，acme.sh 返回错误码: $ACME_STATUS" red
+        print_msg "请检查邮箱、API Key 和域名是否正确，或查看 acme.sh 日志。" red
         exit 1
     fi
-
-    # 安装证书到指定路径
-    "$HOME/.acme.sh/acme.sh" --install-cert \
-        -d "${ANYTLS_DOMAIN}" \
-        --ecc \
-        --key-file "$KEY_PATH" \
-        --fullchain-file "$CERT_PATH"
-
-    print_msg "Cloudflare 证书申请并安装成功: $CERT_PATH" green
 }
+
 
 
 # --- 核心安装 ---
