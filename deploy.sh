@@ -220,18 +220,20 @@ issue_cf_cert( ) {
 # --- 核心安装 ---
 do_install() {
     print_msg "--- 节点安装向导 ---" blue
-    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,2,3):" yellow
+    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2,3,4):" yellow
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 安装 VLESS + AnyTLS (使用 CF 证书)"
+    print_msg "  4) 安装 VLESS + Vision + Reality"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
     
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
-    if [[ ! "$INSTALL_CHOICE" =~ ^[123](,[123])*$ ]]; then
-        print_msg "无效选项，请输入 1, 2, 3 中的一个或多个（用逗号分隔）。" red
-        exit 1
+    if [[ ! "$INSTALL_CHOICE" =~ ^[1-4](,[1-4])*$ ]]; then
+       print_msg "无效选项，请输入 1, 2, 3, 4 中的一个或多个（用逗号分隔）。" red
+       exit 1
     fi
+
 
     mkdir -p "$AGSBX_DIR"
     # 预设权限
@@ -273,6 +275,18 @@ do_install() {
         echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
     fi
 
+    # VLESS + Vision + Reality 安装
+   if is_selected 4; then
+       print_msg "即将安装 VLESS + Vision + Reality 节点..." blue
+       # 调用同目录下的 install.sh
+       if [ -f "./install.sh" ]; then
+          bash ./install.sh
+       else
+          print_msg "未找到 install.sh，请确认脚本在同一目录下。" red
+          exit 1
+    fi
+    
+    fi
     # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
     [ -n "$SERVER_IPV6" ] && echo "SERVER_IPV6='${SERVER_IPV6}'" >> "$VARS_PATH"
