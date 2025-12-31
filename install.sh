@@ -1,25 +1,42 @@
 #!/usr/bin/env bash
 set -e
 
-echo "======================================="
-echo " Xray | VLESS + Vision + Reality 安装  "
-echo "======================================="
+XCONF_DIR="/etc/xray"
+SYSTEMD_SERVICE="xray"
 
-set -e
+print_msg() { printf "\033[0;33m%s\033[0m\n" "$1"; }
 
-if [[ "$1" == "show-uri" ]]; then
-    # 直接读取之前保存的参数文件
-    if [ ! -f /etc/xray/xray-vars.conf ]; then
-        echo "❌ 未找到已安装的变量文件，请先安装节点"
-        exit 1
-    fi
-    source /etc/xray/xray-vars.conf
+# --- 命令判断 ---
+case "$1" in
+    show-uri)
+        if [ ! -f "$XCONF_DIR/xray-vars.conf" ]; then
+            echo "❌ 未找到已安装的变量文件，请先安装节点"
+            exit 1
+        fi
+        source "$XCONF_DIR/xray-vars.conf"
+        IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
+        REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
+        echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
+        exit 0
+        ;;
+    stop)
+        print_msg "正在停止 VLESS + Vision + Reality 节点..."
+        systemctl stop "$SYSTEMD_SERVICE" 2>/dev/null || true
+        systemctl disable "$SYSTEMD_SERVICE" 2>/dev/null || true
+        print_msg "节点已停止"
+        exit 0
+        ;;
+    uninstall)
+        print_msg "⚠️ 即将卸载 VLESS + Vision + Reality 节点..."
+        bash "$0" stop
+        rm -f /etc/systemd/system/$SYSTEMD_SERVICE.service
+        systemctl daemon-reload
+        rm -rf "$XCONF_DIR" /var/log/xray /usr/local/bin/xray
+        print_msg "✅ 卸载完成"
+        exit 0
+        ;;
+esac
 
-    IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
-    REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
-    echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
-    exit 0
-fi
 
 
 # 1️⃣ 基础依赖
@@ -129,25 +146,7 @@ echo "---------------------------------------"
 echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
 echo "---------------------------------------"
 
-if [[ "$1" == "uninstall" ]]; then
-    echo "⚠️ 即将卸载 Xray | VLESS + Vision + Reality 节点..."
-    systemctl stop xray 2>/dev/null || true
-    systemctl disable xray 2>/dev/null || true
-    rm -f /etc/systemd/system/xray.service
-    systemctl daemon-reload
-    rm -rf /etc/xray /usr/local/bin/xray /var/log/xray
-    echo "✅ 卸载完成"
-    exit 0
-fi
 
-
-if [[ "$1" == "show-uri" ]]; then
-    IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
-    REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
-    echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
-    exit 0
-fi
-mkdir -p /etc/xray
 cat >/etc/xray/xray-vars.conf <<EOF
 UUID='${UUID}'
 PORT='${PORT}'
