@@ -19,6 +19,14 @@ case "$1" in
         echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
         exit 0
         ;;
+    start)
+        print_msg "正在启动 VLESS + Vision + Reality 节点..."
+        systemctl daemon-reload
+        systemctl enable "$SYSTEMD_SERVICE"
+        systemctl restart "$SYSTEMD_SERVICE"
+        print_msg "节点已启动" green
+        exit 0
+        ;;    
     stop)
         print_msg "正在停止 VLESS + Vision + Reality 节点..."
         systemctl stop "$SYSTEMD_SERVICE" 2>/dev/null || true
