@@ -5,6 +5,23 @@ echo "======================================="
 echo " Xray | VLESS + Vision + Reality 安装  "
 echo "======================================="
 
+set -e
+
+if [[ "$1" == "show-uri" ]]; then
+    # 直接读取之前保存的参数文件
+    if [ ! -f /etc/xray/xray-vars.conf ]; then
+        echo "❌ 未找到已安装的变量文件，请先安装节点"
+        exit 1
+    fi
+    source /etc/xray/xray-vars.conf
+
+    IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
+    REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
+    echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
+    exit 0
+fi
+
+
 # 1️⃣ 基础依赖
 apt update -y
 apt install -y curl unzip jq uuid-runtime openssl
@@ -118,4 +135,13 @@ if [[ "$1" == "show-uri" ]]; then
     echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
     exit 0
 fi
+mkdir -p /etc/xray
+cat >/etc/xray/xray-vars.conf <<EOF
+UUID='${UUID}'
+PORT='${PORT}'
+SNI='${SNI}'
+PUBLIC_KEY='${PUBLIC_KEY}'
+SHORT_ID='${SHORT_ID}'
+EOF
+
 
