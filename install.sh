@@ -129,6 +129,18 @@ echo "---------------------------------------"
 echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
 echo "---------------------------------------"
 
+if [[ "$1" == "uninstall" ]]; then
+    echo "⚠️ 即将卸载 Xray | VLESS + Vision + Reality 节点..."
+    systemctl stop xray 2>/dev/null || true
+    systemctl disable xray 2>/dev/null || true
+    rm -f /etc/systemd/system/xray.service
+    systemctl daemon-reload
+    rm -rf /etc/xray /usr/local/bin/xray /var/log/xray
+    echo "✅ 卸载完成"
+    exit 0
+fi
+
+
 if [[ "$1" == "show-uri" ]]; then
     IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
     REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
