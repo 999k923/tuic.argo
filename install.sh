@@ -29,8 +29,8 @@ install -m 755 /tmp/xray/xray /usr/local/bin/xray
 # 4️⃣ 生成参数
 UUID=$(uuidgen)
 KEY_JSON=$(xray x25519)
-PRIVATE_KEY=$(echo "$KEY_JSON" | awk '/Private key/ {print $3}')
-PUBLIC_KEY=$(echo "$KEY_JSON" | awk '/Public key/ {print $3}')
+PRIVATE_KEY=$(echo "$KEY_JSON" | grep 'Private key' | cut -d ':' -f2 | tr -d ' ')
+PUBLIC_KEY=$(echo "$KEY_JSON" | grep 'Public key'  | cut -d ':' -f2 | tr -d ' ')
 SHORT_ID=$(openssl rand -hex 8)
 
 # 5️⃣ 目录
