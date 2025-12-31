@@ -398,11 +398,21 @@ EOF
     print_msg "服务已启动" green
 }
 
-do_stop( ) {
+do_stop() {
+    # 停止主程序相关服务
     pkill -f "$SINGBOX_PATH"
     pkill -f "$CLOUDFLARED_PATH"
-    print_msg "服务已停止" green
+    print_msg "主程序服务已停止" green
+
+    # 停止 Xray 节点
+    if [ -f "/root/install.sh" ]; then
+        bash /root/install.sh stop
+        print_msg "Xray 节点服务已停止" green
+    else
+        print_msg "⚠️ install.sh 未找到，无法停止 Xray 节点" yellow
+    fi
 }
+
 
 do_list() {
     if [ ! -f "$VARS_PATH" ]; then
