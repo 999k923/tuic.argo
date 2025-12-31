@@ -7,7 +7,7 @@
 3) 安装 VLESS + AnyTLS (使用 CF 证书)"
 4) 安装 VLESS + Vision + Reality ，当前代理/隧道体系里的「顶级 / T0～T1 级别方案」，属于 高对抗、高隐蔽、低特征 的现代协议组合
 
-### 1,2,3是sing-box内核，4是xray内核。
+#####       1,2,3是sing-box内核，4是xray内核。
 
 安装步骤
 ==
