@@ -111,3 +111,11 @@ echo "🎉 安装完成"
 echo "---------------------------------------"
 echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
 echo "---------------------------------------"
+
+if [[ "$1" == "show-uri" ]]; then
+    IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
+    REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
+    echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
+    exit 0
+fi
+
