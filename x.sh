@@ -110,8 +110,11 @@ SHORT_ID=$(openssl rand -hex 8)
 
 
 # 5️⃣ 目录和配置
-print_msg "正在写入配置文件..." yellow
+print_msg "正在写入配置文件 (dokodemo + Reality 增强模式)..." yellow
 mkdir -p /etc/xray /var/log/xray
+
+# 定义一个固定的内网端口给 Reality 使用
+REALITY_IN_PORT=44312
 
 cat >/etc/xray/config.json <<EOF
 {
@@ -122,7 +125,25 @@ cat >/etc/xray/config.json <<EOF
   },
   "inbounds": [
     {
+      "tag": "dokodemo-in",
       "port": ${PORT},
+      "listen": "0.0.0.0",
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1",
+        "port": ${REALITY_IN_PORT},
+        "network": "tcp"
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["tls"],
+        "routeOnly": true
+      }
+    },
+    {
+      "tag": "reality-in",
+      "listen": "127.0.0.1",
+      "port": ${REALITY_IN_PORT},
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -148,10 +169,34 @@ cat >/etc/xray/config.json <<EOF
     }
   ],
   "outbounds": [
-    { "protocol": "freedom", "tag": "direct" }
-  ]
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "block"
+    }
+  ],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": ["dokodemo-in"],
+        "domain": ["${SNI}"],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "inboundTag": ["dokodemo-in"],
+        "protocol": ["tls"],
+        "outboundTag": "block"
+      }
+    ]
+  }
 }
 EOF
+
 
 # 7️⃣ 检查 JSON 格式
 jq . /etc/xray/config.json >/dev/null 2>&1 || { print_msg "❌ JSON 格式错误" red; exit 1; }
