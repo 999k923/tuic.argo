@@ -45,7 +45,7 @@ do_install() {
     print_msg "--- sing-box (sing.sh) ---"
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
-    print_msg "  3) 安装 VLESS + AnyTLS (使用 CF 证书)"
+    print_msg "  3) 安装 AnyTLS (使用 CF 证书)"
     print_msg "--- Xray (x.sh) ---"
     print_msg "  4) 安装 VLESS + Vision + Reality"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
