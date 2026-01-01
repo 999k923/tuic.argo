@@ -94,7 +94,7 @@ check_xray(){
     # 使用进程检查 + nohup 启动，不依赖 systemd
     if ! pgrep -f "$XRAY_CONFIG_PATH" >/dev/null; then
         log "🔄 [xray] 不在运行，后台启动中..."
-        nohup "$XRAY_BIN" run -config "$XRAY_CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
+        nohup /usr/local/bin/xray run -config "$XRAY_CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
