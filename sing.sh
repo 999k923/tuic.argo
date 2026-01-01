@@ -395,7 +395,7 @@ do_generate_config() {
           "listen":"::",
           "listen_port":%s,
           "users":[{"password":"%s"}],
-          "padding_scheme":[{"method":"tls","size":"random"}],
+          "padding_scheme": "tls",
           "tls":{
             "enabled": true,
             "server_name": "%s",
