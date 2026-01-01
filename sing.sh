@@ -236,7 +236,7 @@ do_install() {
     print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,2 或 1,2,3):" yellow
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
-    print_msg "  3) 安装 VLESS + AnyTLS (使用 CF 证书)"
+    print_msg "  3) 安装 AnyTLS (使用 CF 证书)"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
     
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
@@ -294,7 +294,7 @@ execute_installation() {
         echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
     fi
 
-    # VLESS AnyTLS 配置
+    # AnyTLS 配置
     if is_selected 3; then
         read -rp "$(printf "${C_GREEN}请输入 AnyTLS 监听端口 (默认 443): ${C_NC}")" ANYTLS_PORT
         ANYTLS_PORT=${ANYTLS_PORT:-443}
