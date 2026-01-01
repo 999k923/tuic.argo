@@ -326,42 +326,25 @@ execute_installation() {
         download_file "$CLOUDFLARED_URL" "$CLOUDFLARED_PATH"
     fi
 
-    # TLS 证书处理
+    # 申请证书
     if is_selected 3; then
         issue_cf_cert
-    elif is_selected 1; then
-        if ! command -v openssl >/dev/null 2>&1; then
-            print_msg "⚠️ openssl 未安装  ，请先安装 openssl" red
-            exit 1
-        fi
-        print_msg "正在生成 TUIC 自签名证书..." yellow
-        openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \
-            -keyout "$KEY_PATH" -out "$CERT_PATH" \
-            -subj "/CN=www.bing.com" -days 36500 >/dev/null 2>&1
-        print_msg "已生成 TUIC 自签名证书。" yellow
     fi
 
-    # 生成 UUID
-    UUID=$($SINGBOX_PATH generate uuid)
-    echo "UUID='${UUID}'" >> "$VARS_PATH"
-    print_msg "生成 UUID: $UUID" yellow
-
-    # 生成 sing-box 配置
-    do_generate_config
-
-    # 启动服务
-    do_start
-    print_msg "\n--- 安装完成，获取节点信息 ---" blue
-    do_list
+    # 生成配置
+    generate_config
 }
 
-do_generate_config() {
+generate_config() {
     load_variables
+    local UUID=$(cat /proc/sys/kernel/random/uuid)
+    echo "UUID='${UUID}'" >> "$VARS_PATH"
+
     local inbounds=()
 
     # TUIC Inbound
     if is_selected 1; then
-        inbounds+=("$(printf '{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":%s,"users":[{"uuid":"%s","password":"%s"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"%s","key_path":"%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")")
+        inbounds+=("$(printf '{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":%s,"users":[{"uuid":"%s","password":"%s"}],"congestion_control":"bbr","tls":{"enabled":true,"certificate_path":"%s","key_path":"%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")")
     fi
 
     # Argo Inbound
@@ -373,9 +356,9 @@ do_generate_config() {
         fi
     fi
 
-    # AnyTLS Inbound (优化 ALPN 减少指纹)
+    # AnyTLS Inbound (真正 AnyTLS：删除 ALPN，添加 transport type anytls)
     if is_selected 3; then
-        inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","alpn":["h2"],"certificate_path":"%s","key_path":"%s"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
+        inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","certificate_path":"%s","key_path":"%s"},"transport":{"type":"anytls"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
 
     # 拼接 inbounds
@@ -397,65 +380,50 @@ do_start() {
     nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
     if is_selected 2; then
         if [ -n "$ARGO_TOKEN" ]; then
-            cat > "$AGSBX_DIR/config.yml" <<EOF
-log-level: info
-ingress:
-  - hostname: ${ARGO_DOMAIN}
-    service: http://127.0.0.1:${ARGO_LOCAL_PORT}
-  - service: http_status:404
-EOF
-            nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
+            nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
         else
-            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
+            nohup "$CLOUDFLARED_PATH" tunnel --no-autoupdate --url "http://localhost:$ARGO_LOCAL_PORT" > "$AGSBX_DIR/argo.log" 2>&1 &
         fi
     fi
-    print_msg "服务已启动" green
+    print_msg "服务已启动。" green
 }
 
-do_stop(  ) {
+do_stop() {
     pkill -f "$SINGBOX_PATH"
     pkill -f "$CLOUDFLARED_PATH"
-    print_msg "服务已停止" green
+    print_msg "服务已停止。" yellow
 }
 
 do_list() {
-    if [ ! -f "$VARS_PATH" ]; then
-        print_msg "未找到配置文件，请先安装。" red
-        return
-    fi
+    load_variables
+    local server_ip=$(get_server_ip)
+    local server_ipv6=$(get_server_ipv6)
+    local hostname=$(hostname)
 
-    source "$VARS_PATH"
-
-    server_ip=$(get_server_ip)
-    server_ipv6=$(get_server_ipv6)
-    hostname=$(hostname)
+    print_msg "\n--- 节点信息 ---" blue
+    echo "UUID: ${UUID}"
 
     if is_selected 1; then
-        tuic_params="congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1"
-        print_msg "--- TUIC IPv4 ---" yellow
-        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?${tuic_params}#tuic-ipv4-${hostname}"
-        print_msg "--- TUIC IPv6 ---" yellow
-        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
+        print_msg "--- TUIC ---" yellow
+        echo "tuic://${UUID}:${UUID}@${server_ip}:${TUIC_PORT}?congestion_control=bbr&alpn=h3&sni=${ANYTLS_DOMAIN}#tuic-${hostname}"
+        echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?congestion_control=bbr&alpn=h3&sni=${ANYTLS_DOMAIN}#tuic-${hostname}"
     fi
 
     if is_selected 2; then
-        current_argo_domain="$ARGO_DOMAIN"
-        if [ -z "$ARGO_TOKEN" ]; then
-            print_msg "等待临时 Argo 域名..." yellow
-            for i in {1..10}; do
-                current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///'  )
-                [ -n "$current_argo_domain" ] && break
-                sleep 2
-            done
+        print_msg "--- Argo Tunnel ---" yellow
+        local argo_domain_actual=""
+        if [ -n "$ARGO_DOMAIN" ]; then
+            argo_domain_actual="$ARGO_DOMAIN"
+        else
+            argo_domain_actual=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///')
         fi
-        if [ -n "$current_argo_domain" ]; then
+
+        if [ -n "$argo_domain_actual" ]; then
             if [ "$ARGO_PROTOCOL" = "vless" ]; then
-                echo "--- VLESS + Argo (TLS) ---" yellow
-                echo "vless://${UUID}@cdns.doon.eu.org:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
+                echo "vless://${UUID}@${argo_domain_actual}:443?encryption=none&security=tls&sni=${argo_domain_actual}&type=ws&path=/${UUID}-vl#argo-vless-${hostname}"
             else
-                vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"cdns.doon.eu.org","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
-                vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
-                echo "--- VMess + Argo (TLS) ---" yellow
+                local vmess_json=$(printf '{"v":"2","ps":"argo-vmess-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$argo_domain_actual" "$UUID" "$argo_domain_actual" "$UUID" "$argo_domain_actual")
+                local vmess_base64=$(echo -n "$vmess_json" | base64 | tr -d '\n')
                 echo "vmess://${vmess_base64}"
             fi
         else
@@ -465,9 +433,9 @@ do_list() {
 
     if is_selected 3; then
         print_msg "--- VLESS + AnyTLS ---" yellow
-        # 优化 ALPN 仅保留 h2
-        echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-${hostname}"
-        echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&alpn=h2&fp=chrome#anytls-${hostname}"
+        # 移除分享链接中的 alpn=h2，让客户端也使用自动指纹
+        echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&fp=chrome#anytls-${hostname}"
+        echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&fp=chrome#anytls-${hostname}"
     fi
 }
 
@@ -490,31 +458,12 @@ show_help() {
     echo "命令: install | list | start | stop | restart | uninstall | help"
 }
 
-# --- 主逻辑 ---
 case "$1" in
-    install) 
-        do_install 
-        ;;
-    install_from_manager) 
-        install_from_manager "$2" 
-        ;;
-    list)    
-        do_list 
-        ;;
-    start)   
-        do_start 
-        ;;
-    stop)    
-        do_stop 
-        ;;
-    restart) 
-        do_restart 
-        ;;
-    uninstall) 
-        # 允许 manage.sh 强制卸载
-        do_uninstall "$2"
-        ;;
-    help|*) 
-        show_help 
-        ;;
+    install) do_install;;
+    list) do_list;;
+    start) do_start;;
+    stop) do_stop;;
+    restart) do_restart;;
+    uninstall) do_uninstall "$2";;
+    help|*) show_help;;
 esac
