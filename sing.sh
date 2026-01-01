@@ -388,14 +388,25 @@ do_generate_config() {
 
         # 写入变量文件，确保 do_list 可以读取
         echo "ANYTLS_PASS='${ANYTLS_PASS}'" >> "$VARS_PATH"
-    
+
+        # padding_scheme 数组（示例，可根据需求修改）
         inbounds+=("$(printf '{
           "type":"anytls",
           "tag":"anytls-sb",
           "listen":"::",
           "listen_port":%s,
           "users":[{"password":"%s"}],
-          "padding_scheme": "tls",
+          "padding_scheme": [
+          "stop=8",
+          "0=50-60",
+          "1=100-300",
+          "2=400-600,c,500-700",
+          "3=9-9,500-1000",
+          "4=500-1000",
+          "5=500-1000",
+          "6=500-1000",
+          "7=500-1000"
+          ],
           "tls":{
             "enabled": true,
             "server_name": "%s",
