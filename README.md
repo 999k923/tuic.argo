@@ -5,7 +5,7 @@
 1) 安装 TUIC,（自签证书，不需要自定义域名）"
 2) 安装 Argo 隧道 (VLESS 或 VMess)"
 3) 安装 AnyTLS (使用CF域名证书，需要自定义域名A记录到vps)"
-4) 安装 VLESS + Vision + Reality ，主要是牛逼，当前代理/隧道体系里的「顶级 / T0～T1 级别方案」，属于 高对抗、高隐蔽、低特征 的现代协议组合
+4) 安装 VLESS-TCP-XTLS-Vision-REALITY，主要是牛逼，当前代理/隧道体系里的「顶级 / T0～T1 级别方案」，属于 高对抗、高隐蔽、低特征 的现代协议组合
 
 ####       1,2,3是sing-box内核，4是xray内核。
 
