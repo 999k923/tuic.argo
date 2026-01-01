@@ -119,8 +119,10 @@ REALITY_IN_PORT=44312
 cat >/etc/xray/config.json <<EOF
 {
   "log": {
-    "loglevel": "debug"
-  },
+  "loglevel": "debug",
+  "access": "/var/log/xray/access.log",
+  "error": "/var/log/xray/error.log"
+}
   "inbounds": [
     {
       "tag": "dokodemo-in",
