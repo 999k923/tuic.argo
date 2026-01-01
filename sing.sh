@@ -381,22 +381,23 @@ do_generate_config() {
         fi
     fi
 
-    # VLESS + TLS（用于 AnyTLS 客户端）
+    # AnyTLS（标准配置）
     if is_selected 3; then
         inbounds+=("$(printf '{
-          "type":"vless",
-          "tag":"vless-anytls",
+          "type":"anytls",
+          "tag":"anytls-sb",
           "listen":"::",
           "listen_port":%s,
-          "users":[{"uuid":"%s"}],
+          "users":[{"password":"%s"}],
+          "padding_scheme":[],
           "tls":{
             "enabled":true,
-            "server_name":"%s",
             "certificate_path":"%s",
             "key_path":"%s"
           }
-        }' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
+        }' "$ANYTLS_PORT" "$UUID" "$CERT_PATH" "$KEY_PATH")")
     fi
+
 
     # 拼接 inbounds
     local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
