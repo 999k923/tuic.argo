@@ -122,7 +122,7 @@ cat >/etc/xray/config.json <<EOF
   "loglevel": "debug",
   "access": "/var/log/xray/access.log",
   "error": "/var/log/xray/error.log"
-}
+},
   "inbounds": [
     {
       "tag": "dokodemo-in",
