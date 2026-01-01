@@ -373,9 +373,21 @@ do_generate_config() {
         fi
     fi
 
-    # AnyTLS Inbound (优化 ALPN 减少指纹)
+    # VLESS + TLS（用于 AnyTLS 客户端）
     if is_selected 3; then
-        inbounds+=("$(printf '{"type":"vless","tag":"vless-anytls","listen":"::","listen_port":%s,"users":[{"uuid":"%s"}],"tls":{"enabled":true,"server_name":"%s","certificate_path":"%s","key_path":"%s"},"transport":{"type":"anytls"}}' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
+        inbounds+=("$(printf '{
+          "type":"vless",
+          "tag":"vless-anytls",
+          "listen":"::",
+          "listen_port":%s,
+          "users":[{"uuid":"%s"}],
+          "tls":{
+            "enabled":true,
+            "server_name":"%s",
+            "certificate_path":"%s",
+            "key_path":"%s"
+          }
+        }' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
 
     # 拼接 inbounds
@@ -465,7 +477,6 @@ do_list() {
 
     if is_selected 3; then
         print_msg "--- VLESS + AnyTLS ---" yellow
-        # 优化 ALPN 仅保留 h2
         echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&fp=chrome#anytls-${hostname}"
         echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&fp=chrome#anytls-${hostname}"
     fi
