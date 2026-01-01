@@ -381,7 +381,7 @@ do_generate_config() {
         fi
     fi
 
-    # AnyTLS（标准配置）
+    # AnyTLS（标准配置，保留变量）
     if is_selected 3; then
         inbounds+=("$(printf '{
           "type":"anytls",
@@ -391,12 +391,14 @@ do_generate_config() {
           "users":[{"password":"%s"}],
           "padding_scheme":[],
           "tls":{
-            "enabled":true,
-            "certificate_path":"%s",
-            "key_path":"%s"
-          }
-        }' "$ANYTLS_PORT" "$UUID" "$CERT_PATH" "$KEY_PATH")")
+          "enabled": true,
+          "server_name": "%s",
+          "certificate_path": "%s",
+          "key_path": "%s"
+        }
+      }' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
+
 
 
     # 拼接 inbounds
@@ -485,10 +487,11 @@ do_list() {
     fi
 
     if is_selected 3; then
-        print_msg "--- VLESS + AnyTLS ---" yellow
-        echo "vless://${UUID}@${server_ip}:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&fp=chrome#anytls-${hostname}"
-        echo "vless://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?encryption=none&security=tls&sni=${ANYTLS_DOMAIN}&fp=chrome#anytls-${hostname}"
-    fi
+        print_msg "--- AnyTLS ---" yellow
+        echo "anytls://${UUID}@${server_ip}:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
+        echo "anytls://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
+   fi
+
 }
 
 do_restart() { do_stop; sleep 1; do_start; }
