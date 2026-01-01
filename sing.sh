@@ -381,25 +381,29 @@ do_generate_config() {
         fi
     fi
 
-    # AnyTLS（标准配置，保留变量）
+    # AnyTLS（标准配置，保留变量 + 随机 password + padding）
     if is_selected 3; then
+        # 生成每次运行随机密码，16 位字母数字
+        ANYTLS_PASS=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+
+        # 写入变量文件，确保 do_list 可以读取
+        echo "ANYTLS_PASS='${ANYTLS_PASS}'" >> "$VARS_PATH"
+    
         inbounds+=("$(printf '{
           "type":"anytls",
           "tag":"anytls-sb",
           "listen":"::",
           "listen_port":%s,
           "users":[{"password":"%s"}],
-          "padding_scheme":[],
+          "padding_scheme":[{"method":"tls","size":"random"}],
           "tls":{
-          "enabled": true,
-          "server_name": "%s",
-          "certificate_path": "%s",
-          "key_path": "%s"
-        }
-      }' "$ANYTLS_PORT" "$UUID" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
+            "enabled": true,
+            "server_name": "%s",
+            "certificate_path": "%s",
+            "key_path": "%s"
+          }
+        }' "$ANYTLS_PORT" "$ANYTLS_PASS" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
-
-
 
     # 拼接 inbounds
     local inbounds_json=$(IFS=,; echo "${inbounds[*]}")
@@ -435,7 +439,7 @@ EOF
     print_msg "服务已启动" green
 }
 
-do_stop(  ) {
+do_stop() {
     pkill -f "$SINGBOX_PATH"
     pkill -f "$CLOUDFLARED_PATH"
     print_msg "服务已停止" green
@@ -488,9 +492,10 @@ do_list() {
 
     if is_selected 3; then
         print_msg "--- AnyTLS ---" yellow
-        echo "anytls://${UUID}@${server_ip}:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
-        echo "anytls://${UUID}@[${server_ipv6}]:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
-   fi
+        # 使用从 VARS_PATH 读取的 ANYTLS_PASS
+        echo "anytls://${ANYTLS_PASS}@${server_ip}:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
+        echo "anytls://${ANYTLS_PASS}@[${server_ipv6}]:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
+    fi
 
 }
 
