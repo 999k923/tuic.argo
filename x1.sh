@@ -110,10 +110,10 @@ SHORT_ID=$(openssl rand -hex 8)
 
 
 # 5️⃣ 目录和配置
-print_msg "正在写入配置文件 (dokodemo + Reality 增强模式)..." yellow
+print_msg "正在写入配置文件 (dokodemo + Reality + Vision)..." yellow
 mkdir -p /etc/xray /var/log/xray
 
-# 定义一个固定的内网端口给 Reality 使用
+# 定义内网端口给 Reality 使用
 REALITY_IN_PORT=44312
 
 cat >/etc/xray/config.json <<EOF
@@ -140,7 +140,7 @@ cat >/etc/xray/config.json <<EOF
     },
     {
       "tag": "reality-in",
-      "listen": "127.0.0.1",
+      "listen": "0.0.0.0",
       "port": ${REALITY_IN_PORT},
       "protocol": "vless",
       "settings": {
@@ -174,14 +174,6 @@ cat >/etc/xray/config.json <<EOF
     {
       "protocol": "blackhole",
       "tag": "block"
-    },
-    {
-      "protocol": "freedom",
-      "tag": "reality-out",
-      "settings": {
-        "domainStrategy": "UseIP",
-        "redirect": "127.0.0.1:${REALITY_IN_PORT}"
-      }
     }
   ],
   "routing": {
@@ -190,7 +182,7 @@ cat >/etc/xray/config.json <<EOF
         "type": "field",
         "inboundTag": ["dokodemo-in"],
         "domain": ["${SNI}"],
-        "outboundTag": "reality-out"
+        "outboundTag": "reality-in"
       },
       {
         "type": "field",
@@ -202,6 +194,7 @@ cat >/etc/xray/config.json <<EOF
   }
 }
 EOF
+
 
 
 # 7️⃣ 检查 JSON 格式
