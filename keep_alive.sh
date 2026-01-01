@@ -84,17 +84,17 @@ EOF
     fi
 }
 
-# --- 【新增】检查 xray (节点4 ) ---
+# --- 检查 xray (节点4) ---
 check_xray(){
     # 如果 xray 配置文件不存在，则认为未安装，直接跳过
     if [ ! -f "$XRAY_CONFIG_PATH" ]; then
         return
     fi
 
-    # xray 是通过 systemd 管理的，所以我们检查 systemd 服务状态
-    if ! systemctl is-active --quiet "$XRAY_SYSTEMD_SERVICE"; then
-        log "🔄 [xray] 服务不在运行，通过 systemctl 启动中..."
-        systemctl restart "$XRAY_SYSTEMD_SERVICE"
+    # 使用进程检查 + nohup 启动，不依赖 systemd
+    if ! pgrep -f "$XRAY_CONFIG_PATH" >/dev/null; then
+        log "🔄 [xray] 不在运行，后台启动中..."
+        nohup "$XRAY_BIN" run -config "$XRAY_CONFIG_PATH" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
@@ -122,8 +122,12 @@ daily_restart(){
         
         # 【新增】重启 xray (如果已安装)
         if [ -f "$XRAY_CONFIG_PATH" ]; then
-            systemctl restart "$XRAY_SYSTEMD_SERVICE"
+            # 先杀掉可能残留的 Xray 进程
+            pkill -f "$XRAY_CONFIG_PATH" || true
+            log "🔄 [xray] 每日重启，后台启动中..."
+            sleep 2
         fi
+
         
         echo "$TODAY" > "$LAST_RESTART_FILE"
         sleep 3
