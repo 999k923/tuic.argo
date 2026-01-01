@@ -458,12 +458,31 @@ show_help() {
     echo "命令: install | list | start | stop | restart | uninstall | help"
 }
 
+# --- 主逻辑 ---
 case "$1" in
-    install) do_install;;
-    list) do_list;;
-    start) do_start;;
-    stop) do_stop;;
-    restart) do_restart;;
-    uninstall) do_uninstall "$2";;
-    help|*) show_help;;
+    install) 
+        do_install 
+        ;;
+    install_from_manager) 
+        install_from_manager "$2" 
+        ;;
+    list)    
+        do_list 
+        ;;
+    start)   
+        do_start 
+        ;;
+    stop)    
+        do_stop 
+        ;;
+    restart) 
+        do_restart 
+        ;;
+    uninstall) 
+        # 允许 manage.sh 强制卸载
+        do_uninstall "$2"
+        ;;
+    help|*) 
+        show_help 
+        ;;
 esac
