@@ -110,7 +110,7 @@ SHORT_ID=$(openssl rand -hex 8)
 
 
 # 5️⃣ 目录和配置
-print_msg "正在写入配置文件 (dokodemo + Reality + Vision)..." yellow
+print_msg "正在写入配置文件 (dokodemo + Reality + Vision 增强模式)..." yellow
 mkdir -p /etc/xray /var/log/xray
 
 # 定义内网端口给 Reality 使用
@@ -119,17 +119,16 @@ REALITY_IN_PORT=44312
 cat >/etc/xray/config.json <<EOF
 {
   "log": {
-    "loglevel": "warning",
-    "access": "/var/log/xray/access.log",
-    "error": "/var/log/xray/error.log"
+    "loglevel": "debug"
   },
   "inbounds": [
     {
       "tag": "dokodemo-in",
       "port": ${PORT},
-      "listen": "0.0.0.0",
       "protocol": "dokodemo-door",
       "settings": {
+        "address": "127.0.0.1",
+        "port": ${REALITY_IN_PORT},
         "network": "tcp"
       },
       "sniffing": {
@@ -139,8 +138,7 @@ cat >/etc/xray/config.json <<EOF
       }
     },
     {
-      "tag": "reality-in",
-      "listen": "0.0.0.0",
+      "listen": "127.0.0.1",
       "port": ${REALITY_IN_PORT},
       "protocol": "vless",
       "settings": {
@@ -156,13 +154,16 @@ cat >/etc/xray/config.json <<EOF
         "network": "tcp",
         "security": "reality",
         "realitySettings": {
-          "show": false,
           "dest": "${SNI}:443",
-          "xver": 0,
           "serverNames": ["${SNI}"],
           "privateKey": "${PRIVATE_KEY}",
           "shortIds": ["${SHORT_ID}"]
         }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http","tls","quic"],
+        "routeOnly": true
       }
     }
   ],
@@ -179,21 +180,19 @@ cat >/etc/xray/config.json <<EOF
   "routing": {
     "rules": [
       {
-        "type": "field",
         "inboundTag": ["dokodemo-in"],
         "domain": ["${SNI}"],
-        "outboundTag": "reality-in"
+        "outboundTag": "direct"
       },
       {
-        "type": "field",
         "inboundTag": ["dokodemo-in"],
-        "protocol": ["tls"],
         "outboundTag": "block"
       }
     ]
   }
 }
 EOF
+
 
 
 
