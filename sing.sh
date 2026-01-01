@@ -312,13 +312,21 @@ execute_installation() {
 
     # 下载 sing-box
     if [ ! -f "$SINGBOX_PATH" ]; then
-        SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-linux-${cpu_arch}.tar.gz"
+        # sing-box 1.12.14 最新 GitHub release
+        SINGBOX_VERSION="1.12.14"
+        SINGBOX_URL="https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-linux-${cpu_arch}.tar.gz"
+    
         TMP_TAR="$AGSBX_DIR/sing-box.tar.gz"
+        echo "[INFO] 下载 sing-box v${SINGBOX_VERSION} -> $TMP_TAR"
         download_file "$SINGBOX_URL" "$TMP_TAR"
+
         tar -xzf "$TMP_TAR" -C "$AGSBX_DIR"
-        mv "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
-        rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-1.9.0-linux-${cpu_arch}"
+        mv "$AGSBX_DIR/sing-box-${SINGBOX_VERSION}-linux-${cpu_arch}/sing-box" "$SINGBOX_PATH"
+    
+    # 清理
+    rm -rf "$TMP_TAR" "$AGSBX_DIR/sing-box-${SINGBOX_VERSION}-linux-${cpu_arch}"
     fi
+
 
     # 下载 cloudflared
     if is_selected 2 && [ ! -f "$CLOUDFLARED_PATH" ]; then
