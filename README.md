@@ -30,10 +30,6 @@ curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 ```bash
 ./manage.sh start
 ```
-提示：您也可以直接使用 restart 命令来一步完成停止和启动操作：
-```bash
-./manage.sh restart
-```
 卸载脚本
 此命令将彻底从您的服务器上删除脚本、所有配置文件和下载的程序。这是一个不可逆的操作。
 ```bash
