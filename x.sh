@@ -29,9 +29,23 @@ case "$1" in
         ;;
     start)
         print_msg "正在启动 VLESS + Vision + Reality 节点..." green
-        systemctl daemon-reload
-        systemctl enable "$SYSTEMD_SERVICE"
-        systemctl restart "$SYSTEMD_SERVICE"
+
+        if command -v systemctl >/dev/null 2>&1; then
+            # ===== systemd =====
+            systemctl daemon-reload
+            systemctl enable "$SYSTEMD_SERVICE"
+            systemctl restart "$SYSTEMD_SERVICE"
+ 
+        elif command -v rc-service >/dev/null 2>&1; then
+            # ===== Alpine OpenRC =====
+            rc-update add xray default 2>/dev/null || true
+            rc-service xray restart
+
+        else
+            print_msg "❌ 未检测到 systemd 或 OpenRC，无法启动服务" red
+            exit 1
+        fi
+
         print_msg "✅ 节点已启动" green
         exit 0
         ;;
@@ -64,15 +78,26 @@ esac
 
 # 1️⃣ 基础依赖
 print_msg "正在安装基础依赖..." yellow
-if command -v apt >/dev/null 2>&1; then
+
+if command -v apk >/dev/null 2>&1; then
+    # Alpine Linux
+    apk update
+    apk add --no-cache curl unzip jq util-linux openssl
+
+elif command -v apt >/dev/null 2>&1; then
+    # Debian / Ubuntu
     apt update -y
     apt install -y curl unzip jq uuid-runtime openssl
+
 elif command -v yum >/dev/null 2>&1; then
-    yum install -y curl unzip jq uuid-runtime openssl
+    # CentOS / Rocky / Alma
+    yum install -y curl unzip jq util-linux openssl
+
 else
-    print_msg "❌ 不支持的包管理器，请手动安装 curl, unzip, jq, uuid-runtime, openssl" red
+    print_msg "❌ 不支持的包管理器，请手动安装 curl, unzip, jq, uuidgen, openssl" red
     exit 1
 fi
+
 
 
 # 2️⃣ 交互输入
@@ -195,15 +220,15 @@ cat >/etc/xray/config.json <<EOF
 }
 EOF
 
-
-
-
 # 7️⃣ 检查 JSON 格式
 jq . /etc/xray/config.json >/dev/null 2>&1 || { print_msg "❌ JSON 格式错误" red; exit 1; }
 
-# 8️⃣ systemd
-print_msg "正在设置 systemd 服务..." yellow
-cat >/etc/systemd/system/xray.service <<EOF
+# 8️⃣ service（systemd / OpenRC 兼容）
+print_msg "正在设置服务..." yellow
+
+if command -v systemctl >/dev/null 2>&1; then
+    # ===== systemd =====
+    cat >/etc/systemd/system/xray.service <<EOF
 [Unit]
 Description=Xray Service
 After=network.target nss-lookup.target
@@ -218,6 +243,37 @@ LimitNOFILE=1048576
 [Install]
 WantedBy=multi-user.target
 EOF
+
+    systemctl daemon-reload
+    systemctl enable xray
+    systemctl restart xray
+
+elif command -v rc-service >/dev/null 2>&1; then
+    # ===== Alpine OpenRC =====
+    cat >/etc/init.d/xray <<'EOF'
+#!/sbin/openrc-run
+
+name="xray"
+description="Xray Service"
+command="/usr/local/bin/xray"
+command_args="run -config /etc/xray/config.json"
+pidfile="/run/xray.pid"
+command_background=true
+
+depend() {
+    need net
+}
+EOF
+
+    chmod +x /etc/init.d/xray
+    rc-update add xray default
+    rc-service xray restart
+
+else
+    print_msg "❌ 未检测到 systemd 或 OpenRC，无法创建服务" red
+    exit 1
+fi
+
 
 # 9️⃣ 启动服务
 bash "$0" start
