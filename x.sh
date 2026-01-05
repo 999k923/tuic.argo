@@ -64,15 +64,26 @@ esac
 
 # 1️⃣ 基础依赖
 print_msg "正在安装基础依赖..." yellow
-if command -v apt >/dev/null 2>&1; then
+
+if command -v apk >/dev/null 2>&1; then
+    # Alpine Linux
+    apk update
+    apk add --no-cache curl unzip jq util-linux openssl
+
+elif command -v apt >/dev/null 2>&1; then
+    # Debian / Ubuntu
     apt update -y
     apt install -y curl unzip jq uuid-runtime openssl
+
 elif command -v yum >/dev/null 2>&1; then
-    yum install -y curl unzip jq uuid-runtime openssl
+    # CentOS / Rocky / Alma
+    yum install -y curl unzip jq util-linux openssl
+
 else
-    print_msg "❌ 不支持的包管理器，请手动安装 curl, unzip, jq, uuid-runtime, openssl" red
+    print_msg "❌ 不支持的包管理器，请手动安装 curl, unzip, jq, uuidgen, openssl" red
     exit 1
 fi
+
 
 
 # 2️⃣ 交互输入
