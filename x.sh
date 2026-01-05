@@ -13,7 +13,14 @@ print_msg() {
         *)      printf "\033[0;33m%s\033[0m\n" "$1";;
     esac
 }
-
+# --- 判断 init 系统 ---
+if command -v systemctl >/dev/null 2>&1; then
+    INIT_SYSTEM="systemd"
+elif [ -d /run/openrc ]; then
+    INIT_SYSTEM="openrc"
+else
+    INIT_SYSTEM="unknown"
+fi
 # --- 命令判断 ---
 case "$1" in
     show-uri)
@@ -28,18 +35,26 @@ case "$1" in
         exit 0
         ;;
     start)
-        print_msg "正在启动 VLESS + Vision + Reality 节点..." green
-        systemctl daemon-reload
-        systemctl enable "$SYSTEMD_SERVICE"
-        systemctl restart "$SYSTEMD_SERVICE"
-        print_msg "✅ 节点已启动" green
+            print_msg "正在启动 Xray..." green
+            if [ "$INIT_SYSTEM" = "systemd" ]; then
+            systemctl daemon-reload
+            systemctl enable "$SYSTEMD_SERVICE"
+            systemctl restart "$SYSTEMD_SERVICE"
+        else
+            rc-service xray restart
+        fi
+            print_msg "✅ 节点已启动" green
         exit 0
         ;;
     stop)
-        print_msg "正在停止 VLESS + Vision + Reality 节点..." yellow
-        systemctl stop "$SYSTEMD_SERVICE" 2>/dev/null || true
-        systemctl disable "$SYSTEMD_SERVICE" 2>/dev/null || true
-        print_msg "✅ 节点已停止" green
+        print_msg "正在停止 Xray..." yellow
+        if [ "$INIT_SYSTEM" = "systemd" ]; then
+            systemctl stop "$SYSTEMD_SERVICE" 2>/dev/null || true
+            systemctl disable "$SYSTEMD_SERVICE" 2>/dev/null || true
+        else
+            rc-service xray stop 2>/dev/null || true
+        fi
+            print_msg "✅ 节点已停止" green
         exit 0
         ;;
     uninstall)
@@ -52,8 +67,13 @@ case "$1" in
         print_msg "⚠️ 即将卸载 VLESS + Vision + Reality 节点..." yellow
         # 调用自身的 stop 命令
         bash "$0" stop >/dev/null 2>&1
-        rm -f /etc/systemd/system/$SYSTEMD_SERVICE.service
-        systemctl daemon-reload
+        if [ "$INIT_SYSTEM" = "systemd" ]; then
+            rm -f /etc/systemd/system/$SYSTEMD_SERVICE.service
+            systemctl daemon-reload
+        else
+            rc-update del xray default 2>/dev/null || true
+            rm -f /etc/init.d/xray
+        fi
         rm -rf "$XCONF_DIR" /var/log/xray /usr/local/bin/xray
         print_msg "✅ 卸载完成" green
         exit 0
@@ -183,8 +203,12 @@ EOF
 jq . /etc/xray/config.json >/dev/null 2>&1 || { print_msg "❌ JSON 格式错误" red; exit 1; }
 
 # 8️⃣ systemd
-print_msg "正在设置 systemd 服务..." yellow
-cat >/etc/systemd/system/xray.service <<EOF
+print_msg "正在设置服务..." yellow
+
+if [ "$INIT_SYSTEM" = "systemd" ]; then
+    mkdir -p /etc/systemd/system
+
+    cat >/etc/systemd/system/xray.service <<EOF
 [Unit]
 Description=Xray Service
 After=network.target nss-lookup.target
@@ -199,6 +223,32 @@ LimitNOFILE=1048576
 [Install]
 WantedBy=multi-user.target
 EOF
+
+elif [ "$INIT_SYSTEM" = "openrc" ]; then
+    cat >/etc/init.d/xray <<'EOF'
+#!/sbin/openrc-run
+
+name="xray"
+command="/usr/local/bin/xray"
+command_args="run -config /etc/xray/config.json"
+command_background="yes"
+pidfile="/run/xray.pid"
+output_log="/var/log/xray/access.log"
+error_log="/var/log/xray/error.log"
+
+depend() {
+    need net
+}
+EOF
+
+    chmod +x /etc/init.d/xray
+    rc-update add xray default
+
+else
+    print_msg "❌ 未知 init 系统，无法安装服务" red
+    exit 1
+fi
+
 
 # 9️⃣ 启动服务
 bash "$0" start
