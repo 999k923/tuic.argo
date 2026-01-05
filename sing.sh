@@ -490,9 +490,9 @@ do_list() {
         if [ -n "$current_argo_domain" ]; then
             if [ "$ARGO_PROTOCOL" = "vless" ]; then
                 echo "--- VLESS + Argo (TLS) ---" yellow
-                echo "vless://${UUID}@www.visa.com.sg:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
+                echo "vless://${UUID}@cdns.doon.eu.org:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
             else
-                vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"www.visa.com.sg","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
+                vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"cdns.doon.eu.org","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
                 vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
                 echo "--- VMess + Argo (TLS) ---" yellow
                 echo "vmess://${vmess_base64}"
