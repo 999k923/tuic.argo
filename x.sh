@@ -116,7 +116,7 @@ mkdir -p /etc/xray /var/log/xray
 cat >/etc/xray/config.json <<EOF
 {
   "log": {
-    "loglevel": "warning",
+    "loglevel": "debug",
     "access": "/var/log/xray/access.log",
     "error": "/var/log/xray/error.log"
   },
