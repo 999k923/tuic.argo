@@ -77,7 +77,7 @@ fi
 
 # 2️⃣ 交互输入
 read -rp "请输入监听端口（如 8443）: " PORT
-read -rp "请输入 Reality SNI（如 microsoft.com，cloudflare.com，bing.com，speed.cloudflare.com，apple.com）: " SNI
+read -rp "请输入 Reality SNI（如 microsoft.com，cloudflare.com，speed.cloudflare.com，apple.com，节点不同尝试换其他的试试）: " SNI
 
 if [[ -z "$PORT" || -z "$SNI" ]]; then
   print_msg "❌ 端口或 SNI 不能为空" red
