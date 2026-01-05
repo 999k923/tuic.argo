@@ -116,14 +116,14 @@ mkdir -p /etc/xray /var/log/xray
 cat >/etc/xray/config.json <<EOF
 {
   "log": {
-    "loglevel": "debug",
+    "loglevel": "warning",
     "access": "/var/log/xray/access.log",
     "error": "/var/log/xray/error.log"
   },
   "inbounds": [
     {
       "port": ${PORT},
-      "listen": "::",
+      "listen": "0.0.0.0",
       "protocol": "vless",
       "settings": {
         "clients": [
