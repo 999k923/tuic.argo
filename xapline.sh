@@ -138,15 +138,14 @@ mkdir -p /etc/xray /var/log/xray
 
 cat >/etc/xray/config.json <<EOF
 {
-  "log": {
-    "loglevel": "warning",
+   "log": {
+    "loglevel": "debug",
     "access": "/var/log/xray/access.log",
     "error": "/var/log/xray/error.log"
   },
   "inbounds": [
     {
       "port": ${PORT},
-      "listen": "0.0.0.0",
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -161,7 +160,6 @@ cat >/etc/xray/config.json <<EOF
         "network": "tcp",
         "security": "reality",
         "realitySettings": {
-          "show": false,
           "dest": "${SNI}:443",
           "serverNames": [
             "${SNI}"
