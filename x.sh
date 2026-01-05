@@ -29,23 +29,9 @@ case "$1" in
         ;;
     start)
         print_msg "正在启动 VLESS + Vision + Reality 节点..." green
-
-        if command -v systemctl >/dev/null 2>&1; then
-            # ===== systemd =====
-            systemctl daemon-reload
-            systemctl enable "$SYSTEMD_SERVICE"
-            systemctl restart "$SYSTEMD_SERVICE"
- 
-        elif command -v rc-service >/dev/null 2>&1; then
-            # ===== Alpine OpenRC =====
-            rc-update add xray default 2>/dev/null || true
-            rc-service xray restart
-
-        else
-            print_msg "❌ 未检测到 systemd 或 OpenRC，无法启动服务" red
-            exit 1
-        fi
-
+        systemctl daemon-reload
+        systemctl enable "$SYSTEMD_SERVICE"
+        systemctl restart "$SYSTEMD_SERVICE"
         print_msg "✅ 节点已启动" green
         exit 0
         ;;
@@ -78,31 +64,20 @@ esac
 
 # 1️⃣ 基础依赖
 print_msg "正在安装基础依赖..." yellow
-
-if command -v apk >/dev/null 2>&1; then
-    # Alpine Linux
-    apk update
-    apk add --no-cache curl unzip jq util-linux openssl
-
-elif command -v apt >/dev/null 2>&1; then
-    # Debian / Ubuntu
+if command -v apt >/dev/null 2>&1; then
     apt update -y
     apt install -y curl unzip jq uuid-runtime openssl
-
 elif command -v yum >/dev/null 2>&1; then
-    # CentOS / Rocky / Alma
-    yum install -y curl unzip jq util-linux openssl
-
+    yum install -y curl unzip jq uuid-runtime openssl
 else
-    print_msg "❌ 不支持的包管理器，请手动安装 curl, unzip, jq, uuidgen, openssl" red
+    print_msg "❌ 不支持的包管理器，请手动安装 curl, unzip, jq, uuid-runtime, openssl" red
     exit 1
 fi
 
 
-
 # 2️⃣ 交互输入
 read -rp "请输入监听端口（如 8443）: " PORT
-read -rp "请输入 Reality SNI（如 speed.cloudflare.com）: " SNI
+read -rp "请输入 Reality SNI（如 microsoft.com，cloudflare.com，bing.com，speed.cloudflare.com，apple.com）: " SNI
 
 if [[ -z "$PORT" || -z "$SNI" ]]; then
   print_msg "❌ 端口或 SNI 不能为空" red
@@ -135,38 +110,20 @@ SHORT_ID=$(openssl rand -hex 8)
 
 
 # 5️⃣ 目录和配置
-print_msg "正在写入配置文件 (dokodemo + Reality + Vision 增强模式)..." yellow
+print_msg "正在写入配置文件 (官方 VLESS + Reality + Vision)..." yellow
 mkdir -p /etc/xray /var/log/xray
-
-# 定义内网端口给 Reality 使用
-REALITY_IN_PORT=44312
 
 cat >/etc/xray/config.json <<EOF
 {
   "log": {
-  "loglevel": "warning",
-  "access": "/var/log/xray/access.log",
-  "error": "/var/log/xray/error.log"
-},
+    "loglevel": "warning",
+    "access": "/var/log/xray/access.log",
+    "error": "/var/log/xray/error.log"
+  },
   "inbounds": [
     {
-      "tag": "dokodemo-in",
       "port": ${PORT},
-      "protocol": "dokodemo-door",
-      "settings": {
-        "address": "127.0.0.1",
-        "port": ${REALITY_IN_PORT},
-        "network": "tcp"
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["tls"],
-        "routeOnly": true
-      }
-    },
-    {
-      "listen": "127.0.0.1",
-      "port": ${REALITY_IN_PORT},
+      "listen": "0.0.0.0",
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -181,15 +138,24 @@ cat >/etc/xray/config.json <<EOF
         "network": "tcp",
         "security": "reality",
         "realitySettings": {
+          "show": false,
           "dest": "${SNI}:443",
-          "serverNames": ["${SNI}"],
+          "serverNames": [
+            "${SNI}"
+          ],
           "privateKey": "${PRIVATE_KEY}",
-          "shortIds": ["${SHORT_ID}"]
+          "shortIds": [
+            "${SHORT_ID}"
+          ]
         }
       },
       "sniffing": {
         "enabled": true,
-        "destOverride": ["http","tls","quic"],
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
         "routeOnly": true
       }
     }
@@ -198,37 +164,19 @@ cat >/etc/xray/config.json <<EOF
     {
       "protocol": "freedom",
       "tag": "direct"
-    },
-    {
-      "protocol": "blackhole",
-      "tag": "block"
     }
-  ],
-  "routing": {
-    "rules": [
-      {
-        "inboundTag": ["dokodemo-in"],
-        "domain": ["${SNI}"],
-        "outboundTag": "direct"
-      },
-      {
-        "inboundTag": ["dokodemo-in"],
-        "outboundTag": "block"
-      }
-    ]
-  }
+  ]
 }
 EOF
+
+
 
 # 7️⃣ 检查 JSON 格式
 jq . /etc/xray/config.json >/dev/null 2>&1 || { print_msg "❌ JSON 格式错误" red; exit 1; }
 
-# 8️⃣ service（systemd / OpenRC 兼容）
-print_msg "正在设置服务..." yellow
-
-if command -v systemctl >/dev/null 2>&1; then
-    # ===== systemd =====
-    cat >/etc/systemd/system/xray.service <<EOF
+# 8️⃣ systemd
+print_msg "正在设置 systemd 服务..." yellow
+cat >/etc/systemd/system/xray.service <<EOF
 [Unit]
 Description=Xray Service
 After=network.target nss-lookup.target
@@ -243,37 +191,6 @@ LimitNOFILE=1048576
 [Install]
 WantedBy=multi-user.target
 EOF
-
-    systemctl daemon-reload
-    systemctl enable xray
-    systemctl restart xray
-
-elif command -v rc-service >/dev/null 2>&1; then
-    # ===== Alpine OpenRC =====
-    cat >/etc/init.d/xray <<'EOF'
-#!/sbin/openrc-run
-
-name="xray"
-description="Xray Service"
-command="/usr/local/bin/xray"
-command_args="run -config /etc/xray/config.json"
-pidfile="/run/xray.pid"
-command_background=true
-
-depend() {
-    need net
-}
-EOF
-
-    chmod +x /etc/init.d/xray
-    rc-update add xray default
-    rc-service xray restart
-
-else
-    print_msg "❌ 未检测到 systemd 或 OpenRC，无法创建服务" red
-    exit 1
-fi
-
 
 # 9️⃣ 启动服务
 bash "$0" start
