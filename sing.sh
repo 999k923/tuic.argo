@@ -395,7 +395,7 @@ do_generate_config() {
           "tag":"anytls-sb",
           "listen":"::",
           "listen_port":%s,
-          "users":[{"password":"%s"}],
+          "users":[{"name":"useranytls","password":"%s"}],
           "padding_scheme": [
             "stop=9",
             "0=20-40",
