@@ -412,7 +412,8 @@ do_generate_config() {
             "enabled": true,
             "server_name": "%s",
             "certificate_path": "%s",
-            "key_path": "%s"
+            "key_path": "%s",
+            "alpn": ["h2", "http/1.1"]
           }
         }' "$ANYTLS_PORT" "$ANYTLS_PASS" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
     fi
