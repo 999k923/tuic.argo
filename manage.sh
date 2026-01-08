@@ -28,6 +28,39 @@ print_msg() {
     esac
 }
 
+# 新增：检查并安装 OpenSSL
+ensure_openssl() {
+    if command -v openssl &> /dev/null; then
+        return 0
+    fi
+
+    print_msg "检测到 'openssl' 命令未找到，正在尝试自动安装..." yellow
+    
+    if command -v apt-get &> /dev/null; then
+        print_msg "检测到 Debian/Ubuntu 系统，使用 apt 安装 OpenSSL..." blue
+        apt-get update && apt-get install -y openssl
+    elif command -v yum &> /dev/null; then
+        print_msg "检测到 CentOS/RHEL 系统，使用 yum 安装 OpenSSL..." blue
+        yum install -y openssl
+    elif command -v apk &> /dev/null; then
+        print_msg "检测到 Alpine 系统，使用 apk 安装 OpenSSL..." blue
+        apk add --no-cache openssl
+    else
+        print_msg "无法确定包管理器。请手动安装 OpenSSL。" red
+        print_msg "  - Debian/Ubuntu: apt install -y openssl" yellow
+        print_msg "  - CentOS/RHEL:   yum install -y openssl" yellow
+        print_msg "  - Alpine:        apk add --no-cache openssl" yellow
+        exit 1
+    fi
+
+    if ! command -v openssl &> /dev/null; then
+        print_msg "OpenSSL 安装失败。请检查错误信息并手动安装。" red
+        exit 1
+    fi
+
+    print_msg "OpenSSL 安装成功！" green
+}
+
 # 检查 sing.sh 是否被安装过
 is_sing_installed() {
     [ -f "$STATUS_FILE" ] && grep -q "SING_INSTALLED=true" "$STATUS_FILE"
@@ -40,6 +73,9 @@ is_xray_installed() {
 
 # --- 核心功能 ---
 do_install() {
+    # 仅在安装时检查 OpenSSL
+    ensure_openssl
+
     print_msg "--- 节点统一安装向导 ---" blue
     print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,4 或 1,2,4):" yellow
     print_msg "--- sing-box (sing.sh) ---"
@@ -66,7 +102,7 @@ do_install() {
         print_msg "\n--- 即将调用 sing.sh 进行安装 (选项: ${SING_CHOICES}) ---" blue
         bash "$SING_SCRIPT_PATH" install_from_manager "${SING_CHOICES}"
         if [ $? -eq 0 ]; then
-            echo "SING_INSTALLED=true" >> "$STATUS_FILE"
+            grep -q "SING_INSTALLED=true" "$STATUS_FILE" || echo "SING_INSTALLED=true" >> "$STATUS_FILE"
             print_msg "sing.sh 安装部分完成。" green
         else
             print_msg "sing.sh 安装失败。" red
@@ -78,7 +114,7 @@ do_install() {
         print_msg "\n--- 即将调用 x.sh 进行安装 ---" blue
         bash "$XRAY_SCRIPT_PATH"
         if [ $? -eq 0 ]; then
-            echo "XRAY_INSTALLED=true" >> "$STATUS_FILE"
+            grep -q "XRAY_INSTALLED=true" "$STATUS_FILE" || echo "XRAY_INSTALLED=true" >> "$STATUS_FILE"
             print_msg "x.sh 安装部分完成。" green
         else
             print_msg "x.sh 安装失败。" red
