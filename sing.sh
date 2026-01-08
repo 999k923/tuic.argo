@@ -236,6 +236,7 @@ CF_DOMAINS=(
     "cf.008500.xyz"
     "store.ubi.com"
     "saas.sin.fan"
+    "cdns.doon.eu.org"
 )
 
 select_random_cf_domain() {
