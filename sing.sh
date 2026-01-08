@@ -315,7 +315,7 @@ if is_selected 2; then
         read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
     fi
     ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
-    read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
+    read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (不支持临时隧道): ${C_NC}")" ARGO_TOKEN
     [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
 
     echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
