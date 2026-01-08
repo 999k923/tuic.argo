@@ -228,6 +228,32 @@ issue_cf_cert() {
     fi
 }
 
+# --- 1. 在脚本开头或合适位置添加优选逻辑 ---
+CF_DOMAINS=(
+    "cf.090227.xyz"
+    "cf.877774.xyz"
+    "cf.130519.xyz"
+    "cf.008500.xyz"
+    "store.ubi.com"
+    "saas.sin.fan"
+)
+
+select_random_cf_domain() {
+    # 使用 >&2 将提示信息输出到屏幕，而不影响函数返回值
+    print_msg "正在优选 Cloudflare 域名，请稍候..." yellow >&2
+    local available=()
+    for domain in "${CF_DOMAINS[@]}"; do
+        if curl -s --max-time 2 -o /dev/null "https://$domain" 2>/dev/null; then
+            available+=("$domain" )
+        fi
+    done
+    if [ ${#available[@]} -gt 0 ]; then
+        echo "${available[$((RANDOM % ${#available[@]}))]}"
+    else
+        echo "${CF_DOMAINS[0]}"
+    fi
+}
+
 
 
 # --- 核心安装 ---
@@ -274,25 +300,30 @@ execute_installation() {
         echo "TUIC_PORT=${TUIC_PORT}" >> "$VARS_PATH"
     fi
 
-    # Argo 配置
-    if is_selected 2; then
-        read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
-        if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
-            ARGO_PROTOCOL='vless'
-            read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
-        else
-            ARGO_PROTOCOL='vmess'
-            read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
-        fi
-        ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
-        read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
-        [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
-
-        echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
-        echo "ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT}" >> "$VARS_PATH"
-        echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
-        echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
+   # --- 2. 修改 Argo 配置部分 ---
+if is_selected 2; then
+    # 执行域名优选并保存
+    SELECTED_CF_DOMAIN=$(select_random_cf_domain)
+    
+    read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
+    if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
+        ARGO_PROTOCOL='vless'
+        read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+    else
+        ARGO_PROTOCOL='vmess'
+        read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
     fi
+    ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
+    read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (留空使用临时隧道): ${C_NC}")" ARGO_TOKEN
+    [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
+
+    echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
+    echo "ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT}" >> "$VARS_PATH"
+    echo "ARGO_TOKEN='${ARGO_TOKEN}'" >> "$VARS_PATH"
+    echo "ARGO_DOMAIN='${ARGO_DOMAIN}'" >> "$VARS_PATH"
+    # 将优选域名也存入变量文件
+    echo "SELECTED_CF_DOMAIN='${SELECTED_CF_DOMAIN}'" >> "$VARS_PATH"
+fi
 
     # AnyTLS 配置
     if is_selected 3; then
@@ -478,30 +509,36 @@ do_list() {
         echo "tuic://${UUID}:${UUID}@[${server_ipv6}]:${TUIC_PORT}?${tuic_params}#tuic-ipv6-${hostname}"
     fi
 
-    if is_selected 2; then
-        current_argo_domain="$ARGO_DOMAIN"
-        if [ -z "$ARGO_TOKEN" ]; then
-            print_msg "等待临时 Argo 域名..." yellow
-            for i in {1..10}; do
-                current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///'  )
-                [ -n "$current_argo_domain" ] && break
-                sleep 2
-            done
-        fi
-        if [ -n "$current_argo_domain" ]; then
-            if [ "$ARGO_PROTOCOL" = "vless" ]; then
-                echo "--- VLESS + Argo (TLS) ---" yellow
-                echo "vless://${UUID}@cdns.doon.eu.org:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
-            else
-                vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"cdns.doon.eu.org","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
-                vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
-                echo "--- VMess + Argo (TLS) ---" yellow
-                echo "vmess://${vmess_base64}"
-            fi
-        else
-            print_msg "未能获取到 Argo 域名，请检查 $AGSBX_DIR/argo.log" red
-        fi
+    # --- 3. 修改节点输出部分 ---
+if is_selected 2; then
+    # 确保读取了优选域名，如果没有则使用默认
+    [ -z "$SELECTED_CF_DOMAIN" ] && SELECTED_CF_DOMAIN="cdns.doon.eu.org"
+    
+    current_argo_domain="$ARGO_DOMAIN"
+    if [ -z "$ARGO_TOKEN" ]; then
+        print_msg "等待临时 Argo 域名..." yellow
+        for i in {1..10}; do
+            current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///'   )
+            [ -n "$current_argo_domain" ] && break
+            sleep 2
+        done
     fi
+    if [ -n "$current_argo_domain" ]; then
+        if [ "$ARGO_PROTOCOL" = "vless" ]; then
+            echo "--- VLESS + Argo (TLS) ---" yellow
+            # 使用 ${SELECTED_CF_DOMAIN} 替换了原有的 cdns.doon.eu.org
+            echo "vless://${UUID}@${SELECTED_CF_DOMAIN}:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
+        else
+            # 使用 ${SELECTED_CF_DOMAIN} 替换了原有的 cdns.doon.eu.org
+            vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$SELECTED_CF_DOMAIN" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
+            vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
+            echo "--- VMess + Argo (TLS) ---" yellow
+            echo "vmess://${vmess_base64}"
+        fi
+    else
+        print_msg "未能获取到 Argo 域名，请检查 $AGSBX_DIR/argo.log" red
+    fi
+fi
 
     if is_selected 3; then
         print_msg "--- AnyTLS ---" yellow
