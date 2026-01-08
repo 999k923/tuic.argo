@@ -228,6 +228,7 @@ issue_cf_cert() {
     fi
 }
 
+# --- 1. 在脚本开头或合适位置添加优选逻辑 ---
 CF_DOMAINS=(
     "cf.090227.xyz"
     "cf.877774.xyz"
@@ -238,41 +239,21 @@ CF_DOMAINS=(
     "cdns.doon.eu.org"
 )
 
-# 指定一个国内 IP 用于测速（可以是国内 VPS 或本地客户端）
-DOMESTIC_IP="116.237.252.149"  # 这里举例，你可以换成实际国内客户端的 IP
-
-select_best_cf_domain() {
-    print_msg "正在优选国内访问速度最快的 Cloudflare 域名，请稍候..." yellow >&2
-    local best_domain=""
-    local best_time=999999
-
+select_random_cf_domain() {
+    # 使用 >&2 将提示信息输出到屏幕，而不影响函数返回值
+    print_msg "正在优选 Cloudflare 域名，请稍候..." yellow >&2
+    local available=()
     for domain in "${CF_DOMAINS[@]}"; do
-        # 使用 curl 测连接时间
-        # --connect-timeout 2 设定 2 秒超时
-        # -s -o /dev/null 不输出内容
-        # 使用 --resolve 可以指定域名解析到国内 IP（模拟国内访问）
-        # 这里假设 DOMESTIC_IP 可以直接访问域名
-        time_ms=$(curl -s -o /dev/null -w "%{time_connect}\n" --connect-timeout 2 "https://$domain")
-        
-        # 如果 curl 有返回
-        if [[ $time_ms != "" ]]; then
-            time_ms_float=$(echo "$time_ms * 1000" | bc)  # 转成毫秒
-            print_msg "$domain 延迟约 ${time_ms_float}ms" green >&2
-            if (( $(echo "$time_ms_float < $best_time" | bc -l) )); then
-                best_time=$time_ms_float
-                best_domain=$domain
-            fi
+        if curl -s --max-time 2 -o /dev/null "https://$domain" 2>/dev/null; then
+            available+=("$domain" )
         fi
     done
-
-    # 没测通就返回第一个
-    if [[ -z "$best_domain" ]]; then
-        best_domain="${CF_DOMAINS[0]}"
+    if [ ${#available[@]} -gt 0 ]; then
+        echo "${available[$((RANDOM % ${#available[@]}))]}"
+    else
+        echo "${CF_DOMAINS[0]}"
     fi
-
-    echo "$best_domain"
 }
-
 
 
 
