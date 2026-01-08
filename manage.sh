@@ -16,7 +16,7 @@ MANAGER_DIR=$(dirname "$(readlink -f "$0")")
 SING_SCRIPT_PATH="${MANAGER_DIR}/sing.sh"
 XRAY_SCRIPT_PATH="${MANAGER_DIR}/x.sh"
 STATUS_FILE="${MANAGER_DIR}/install_status.conf"
-
+touch "$STATUS_FILE" 2>/dev/null
 # --- 辅助函数 ---
 print_msg() {
     case "$2" in
