@@ -37,24 +37,6 @@ curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 ```
 脚本会请求您输入 y 确认，以防止误操作。
 
-
-错误提示：openssl: command not found解决办法：
-==
-方法 1：安装 OpenSSL
-
-Debian/Ubuntu：
-```bash
-apt update && apt install -y openssl
-```
-Alpine（如果是 apk 系统）：
-```bash
-apk add --no-cache openssl
-```
-CentOS/RHEL：
-```bash
-yum install -y openssl
-```
-
 保活命令
 ==
 ```bash
