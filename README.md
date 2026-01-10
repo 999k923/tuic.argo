@@ -31,8 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 ```bash
 ./manage.sh list
 ```
-停止脚本（停止服务），装了保活命令会自动启动就是重启命令
-此命令会停止所有由该脚本启动的后台进程（sing-box 和 cloudflared）。
+停止脚本（停止服务），装了保活命令会自动启动就是重启命令.
 ```bash
 ./manage.sh stop
 ```
