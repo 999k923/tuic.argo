@@ -15,6 +15,17 @@
 ```bash
 curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/manage.sh && curl -Lo x.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/xapline.sh && curl -Lo sing.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/sing.sh && chmod +x sing.sh x.sh manage.sh && ./manage.sh install
 ```
+
+保活命令
+==
+```bash
+curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh && chmod +x ~/agsbx/keep_alive.sh && bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
+```
+## 取消保活：
+```bash
+curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/stop.sh | sh
+```
+
 ## 管理菜单
 显示节点信息：导入节点后如果ip地址有错，IP地址和优选ip地址手动更换一下，以免节点不通。
 ```bash
@@ -37,15 +48,7 @@ curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/head
 ```
 脚本会请求您输入 y 确认，以防止误操作。
 
-保活命令
-==
-```bash
-curl -o ~/agsbx/keep_alive.sh -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/keep_alive.sh && chmod +x ~/agsbx/keep_alive.sh && bash <(curl -L https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/setup_keepalive_autostart.sh)
-```
-## 取消保活：
-```bash
-curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/stop.sh | sh
-```
+
 
 docker部署,docker版本只有hy2和tuic
 ==
