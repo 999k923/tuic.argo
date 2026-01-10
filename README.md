@@ -9,9 +9,9 @@
 
 ####       1,2,3是sing-box内核，4是xray内核。
 
-安装步骤
+
+这是一键安装的命令。
 ==
-这是一键安装的命令引导完成交互式安装过程。
 ```bash
 curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/manage.sh && curl -Lo x.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/xapline.sh && curl -Lo sing.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/sing.sh && chmod +x sing.sh x.sh manage.sh && ./manage.sh install
 ```
