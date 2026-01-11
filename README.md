@@ -68,3 +68,5 @@ services:
 networks: {}
 ```
 docker挂载目录下有一个hy2_link.txt文件，节点信息就在这里面查看。
+
+游戏机版本：https://github.com/999k923/node.js.python/tree/main
