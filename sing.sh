@@ -309,13 +309,13 @@ if is_selected 2; then
     read -rp "$(printf "${C_GREEN}Argo 隧道承载 VLESS 还是 VMess? [1=VLESS,2=VMess]: ${C_NC}")" ARGO_PROTOCOL_CHOICE
     if [[ "$ARGO_PROTOCOL_CHOICE" = "1" ]]; then
         ARGO_PROTOCOL='vless'
-        read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+        read -rp "$(printf "${C_GREEN}请输入 VLESS 本地监听端口 (如果用临时隧道直接回车): ${C_NC}")" ARGO_LOCAL_PORT
     else
         ARGO_PROTOCOL='vmess'
-        read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (默认 8080): ${C_NC}")" ARGO_LOCAL_PORT
+        read -rp "$(printf "${C_GREEN}请输入 VMess 本地监听端口 (如果用临时隧道直接回车): ${C_NC}")" ARGO_LOCAL_PORT
     fi
     ARGO_LOCAL_PORT=${ARGO_LOCAL_PORT:-8080}
-    read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (不支持临时隧道): ${C_NC}")" ARGO_TOKEN
+    read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel Token (如果用临时隧道直接回车): ${C_NC}")" ARGO_TOKEN
     [ -n "$ARGO_TOKEN" ] && read -rp "$(printf "${C_GREEN}请输入 Argo Tunnel 对应域名: ${C_NC}")" ARGO_DOMAIN
 
     echo "ARGO_PROTOCOL='$ARGO_PROTOCOL'" >> "$VARS_PATH"
