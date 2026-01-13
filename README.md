@@ -109,8 +109,6 @@ docker run -d \
   -e PORT1=21300 \
   -e PORT4=21400 \
   -e XRAY_SNI=cloudflare.com \
-  -p 21300:21300 \
-  -p 21400:21400 \
   -v /data/tuic/agsbx:/root/agsbx \
   -v /data/tuic/xray:/etc/xray \
   999k923/tuic-argo:latest
@@ -136,8 +134,6 @@ docker run -d \
   -e ARGO_PROTOCOL=vless \
   -e ARGO_TOKEN=your_argo_token \
   -e ARGO_DOMAIN=your.argo.domain.com \
-  -p 21300:21300 \
-  -p 21400:21400 \
   -v /data/tuic/agsbx:/root/agsbx \
   -v /data/tuic/xray:/etc/xray \
   999k923/tuic-argo:latest
