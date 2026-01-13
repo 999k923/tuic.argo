@@ -1,12 +1,6 @@
-​:codex-file-citation[codex-file-citation]{line_range_start=1 line_range_end=75 path=README_docker.md git_url="https://github.com/999k923/tuic.argo/blob/main/README_docker.md#L1-L75"}​
-
----
-
-## .github/workflows/docker-publish.yml（完整）
-```yaml
 name: Docker Publish
 
-on:
+"on":
   push:
     branches:
       - main
