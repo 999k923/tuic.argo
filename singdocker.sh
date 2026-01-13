@@ -303,7 +303,7 @@ install_from_manager() {
     execute_installation "$choices"
 }
 
-# 实际的安装执行逻辑
+# 际的安装执行逻辑
 execute_installation() {
     local INSTALL_CHOICE="$1"
     
@@ -559,7 +559,7 @@ if is_selected 2; then
     if [ -z "$ARGO_TOKEN" ]; then
         print_msg "等待临时 Argo 域名..." yellow
         for i in {1..10}; do
-            current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///')
+            current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | tail -n1 | sed 's/https:\/\///')
             [ -n "$current_argo_domain" ] && break
             sleep 2
         done
