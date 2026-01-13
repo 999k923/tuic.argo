@@ -508,7 +508,9 @@ EOF
 
 do_start() {
     load_variables
-    do_stop
+    if pgrep -f "$SINGBOX_PATH" >/dev/null 2>&1 || pgrep -f "$CLOUDFLARED_PATH" >/dev/null 2>&1; then
+        do_stop
+    fi
     nohup "$SINGBOX_PATH" run -c "$CONFIG_PATH" > "$AGSBX_DIR/sing-box.log" 2>&1 &
     if is_selected 2; then
         if [ -n "$ARGO_TOKEN" ]; then
