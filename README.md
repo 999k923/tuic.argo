@@ -49,24 +49,5 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 
 
 
-docker部署,docker版本只有hy2和tuic
+docker部署流程如下
 ==
-```bash
-version: "3.9"
-services:
-  proxy:
-    image: 999k923/docker-proxy:latest
-    container_name: proxy_server
-    restart: always
-    network_mode: host # 保留 host 模式，这样容器直接使用宿主机网络
-    environment:
-      SERVICE_TYPE: 1 # 1=HY2, 2=TUIC
-      SERVICE_PORT: 30000
-      IP_VERSION: "6" # ""=留空双栈VPS, "4"=IPv4 only, "6"=IPv6 only
-    volumes:
-      - /opt/stacks/proxy_server/data:/proxy_files
-networks: {}
-```
-docker挂载目录下有一个hy2_link.txt文件，节点信息就在这里面查看。
-
-游戏机版本：https://github.com/999k923/node.js.python/tree/main
