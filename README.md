@@ -105,4 +105,26 @@ docker run -d \
   -v /data/tuic/xray:/etc/xray \
   999k923/tuic-argo:latest
 ```
-
+# 全部安装的示例
+```bash
+docker run -d \
+  --name tuic-argo \
+  -e NODE1=true \
+  -e NODE2=true \
+  -e NODE3=true \
+  -e NODE4=true \
+  -e PORT1=21300 \
+  -e PORT2=8080 \
+  -e PORT3=21420 \
+  -e PORT4=21400 \
+  -e XRAY_SNI=cloudflare.com \
+  -e CF_EMAIL=your@email.com \
+  -e CF_API_KEY=your_cf_global_api_key \
+  -e ANYTLS_DOMAIN=your.domain.com \
+  -e ARGO_PROTOCOL=vless \
+  -e ARGO_TOKEN=your_argo_token \
+  -e ARGO_DOMAIN=your.argo.domain.com \
+  -p 21300:21300 \
+  -p 21400:21400 \
+  999k923/tuic-argo:latest
+```
