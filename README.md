@@ -84,11 +84,20 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 
 - `ARGO_PROTOCOL`：`vless` 或 `vmess`（默认 `vless`）
 - `ARGO_TOKEN`：Argo Tunnel Token（留空则临时隧道）
-- `ARGO_DOMAIN`：与 Token 对应的域名
+- `ARGO_DOMAIN`：与 Token 对应的域名（临时隧道不需要）
 
 ## 示例
 
+建议将容器内目录挂载到宿主,避免容器重建后配置与证书丢失：
 
+- `/root/agsbx`：TUIC/Argo/AnyTLS 的配置、证书、日志等
+- `/etc/xray`：Reality 配置与变量
+
+### 使用宿主机目录
+```bash
+mkdir -p /data/tuic/agsbx
+mkdir -p /data/tuic/xray
+```
 
 # 运行时按需添加环境变量与端口映射
 ```bash
@@ -105,6 +114,7 @@ docker run -d \
   -v /data/tuic/xray:/etc/xray \
   999k923/tuic-argo:latest
 ```
+
 # 全部安装的示例
 ```bash
 docker run -d \
@@ -114,7 +124,7 @@ docker run -d \
   -e NODE3=true \
   -e NODE4=true \
   -e PORT1=21300 \
-  -e PORT2=8080 \
+  -e PORT2=21410 \
   -e PORT3=21420 \
   -e PORT4=21400 \
   -e XRAY_SNI=cloudflare.com \
@@ -126,5 +136,8 @@ docker run -d \
   -e ARGO_DOMAIN=your.argo.domain.com \
   -p 21300:21300 \
   -p 21400:21400 \
+  -v /data/tuic/agsbx:/root/agsbx \
+  -v /data/tuic/xray:/etc/xray \
   999k923/tuic-argo:latest
 ```
+
