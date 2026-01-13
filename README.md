@@ -49,5 +49,60 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 
 
 
-docker部署流程如下
-==
+
+# Docker 使用说明
+
+本项目提供 Docker 版本脚本，避免修改原有文件。默认使用 `managedocker.sh` 作为容器入口。
+
+## 环境变量
+
+### 节点开关（任意一个设为 `true/1/1ture` 即启用）
+
+- `NODE1`：安装 TUIC
+- `NODE2`：安装 Argo 隧道 (VLESS/VMess)
+- `NODE3`：安装 AnyTLS (Cloudflare 证书)
+- `NODE4`：安装 VLESS + Vision + Reality
+
+### 端口变量（对应 4 个节点）
+
+- `PORT1`：TUIC 端口（默认 443）
+- `PORT2`：Argo 本地监听端口（默认 8080）
+- `PORT3`：AnyTLS 端口（默认 443）
+- `PORT4`：Reality 监听端口（默认 8443）
+
+### Reality (NODE4) 必需变量
+
+- `XRAY_SNI`：Reality SNI（如 `microsoft.com`、`cloudflare.com`）
+
+### AnyTLS (NODE3) 必需变量
+
+- `CF_EMAIL`：Cloudflare 账户邮箱
+- `CF_API_KEY`：Cloudflare Global API Key
+- `ANYTLS_DOMAIN`：AnyTLS 域名
+
+### Argo (NODE2) 可选变量
+
+- `ARGO_PROTOCOL`：`vless` 或 `vmess`（默认 `vless`）
+- `ARGO_TOKEN`：Argo Tunnel Token（留空则临时隧道）
+- `ARGO_DOMAIN`：与 Token 对应的域名
+
+## 示例
+
+
+
+# 运行时按需添加环境变量与端口映射
+```bash
+docker run -d \
+  --name tuic-argo \
+  -e NODE1=true \
+  -e NODE4=true \
+  -e PORT1=21300 \
+  -e PORT4=21400 \
+  -e XRAY_SNI=cloudflare.com \
+  -p 21300:21300 \
+  -p 21400:21400 \
+  -v /data/tuic/agsbx:/root/agsbx \
+  -v /data/tuic/xray:/etc/xray \
+  999k923/tuic-argo:latest
+```
+
