@@ -93,7 +93,7 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 - `/root/agsbx`：TUIC/Argo/AnyTLS 的配置、证书、日志等
 - `/etc/xray`：Reality 配置与变量
 
-### 使用宿主机目录
+### 使用宿主机目录,改自己的路径即可
 ```bash
 mkdir -p /data/tuic/agsbx
 mkdir -p /data/tuic/xray
