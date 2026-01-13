@@ -172,6 +172,6 @@ case "${1:-}" in
     list)      do_list ;;
     start)     do_start ;;
     stop)      do_stop ;;
-    run)       do_install; do_start; tail -f /dev/null ;;
+    run)       do_install; tail -f /dev/null ;;
     help|*)    show_help ;;
 esac
