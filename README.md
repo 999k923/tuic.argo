@@ -103,6 +103,7 @@ mkdir -p /data/tuic/xray
 ```bash
 docker run -d \
   --name tuic-argo \
+  --network host \
   -e NODE1=true \
   -e NODE4=true \
   -e PORT1=21300 \
@@ -119,6 +120,7 @@ docker run -d \
 ```bash
 docker run -d \
   --name tuic-argo \
+  --network host \
   -e NODE1=true \
   -e NODE2=true \
   -e NODE3=true \
