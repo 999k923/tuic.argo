@@ -555,26 +555,33 @@ do_list() {
 
     # --- 3. 修改节点输出部分 ---
 if is_selected 2; then
-    # 确保读取了优选域名，如果没有则使用默认
-    [ -z "$SELECTED_CF_DOMAIN" ] && SELECTED_CF_DOMAIN="cdns.doon.eu.org"
-    
     current_argo_domain="$ARGO_DOMAIN"
     if [ -z "$ARGO_TOKEN" ]; then
         print_msg "等待临时 Argo 域名..." yellow
         for i in {1..10}; do
-            current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///'   )
+            current_argo_domain=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$AGSBX_DIR/argo.log" | head -n1 | sed 's/https:\/\///')
             [ -n "$current_argo_domain" ] && break
             sleep 2
         done
     fi
+
     if [ -n "$current_argo_domain" ]; then
+        if [ -z "$ARGO_TOKEN" ]; then
+            add_domain="$current_argo_domain"
+        else
+            add_domain="$ARGO_DOMAIN"
+        fi
+
+        if [ -z "$add_domain" ]; then
+            print_msg "未能获取到 Argo 域名，请检查 $AGSBX_DIR/argo.log" red
+            return
+        fi
+
         if [ "$ARGO_PROTOCOL" = "vless" ]; then
             echo "--- VLESS + Argo (TLS) ---" yellow
-            # 使用 ${SELECTED_CF_DOMAIN} 替换了原有的 cdns.doon.eu.org
-            echo "vless://${UUID}@${SELECTED_CF_DOMAIN}:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
+            echo "vless://${UUID}@${add_domain}:443?encryption=none&security=tls&sni=${current_argo_domain}&fp=chrome&type=ws&host=${current_argo_domain}&path=%2f${UUID}-vl#argo-vless-${hostname}"
         else
-            # 使用 ${SELECTED_CF_DOMAIN} 替换了原有的 cdns.doon.eu.org
-            vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$SELECTED_CF_DOMAIN" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
+            vmess_json=$(printf '{"v":"2","ps":"vmess-argo-%s","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/%s-vm","tls":"tls","sni":"%s"}' "$hostname" "$add_domain" "$UUID" "$current_argo_domain" "$UUID" "$current_argo_domain")
             vmess_base64=$(echo "$vmess_json" | tr -d '\n' | base64 -w0)
             echo "--- VMess + Argo (TLS) ---" yellow
             echo "vmess://${vmess_base64}"
