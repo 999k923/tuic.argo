@@ -13,7 +13,7 @@
 这是一键安装的命令。
 ==
 ```bash
-curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/manage.sh && curl -Lo x.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/xapline.sh && curl -Lo sing.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/sing.sh && chmod +x sing.sh x.sh manage.sh && ./manage.sh install
+curl -Lo manage.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/manage.sh && curl -Lo x.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/x.sh && curl -Lo sing.sh https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/sing.sh && chmod +x sing.sh x.sh manage.sh && ./manage.sh install
 ```
 
 保活命令
