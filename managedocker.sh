@@ -15,6 +15,7 @@ C_NC='\033[0m'
 MANAGER_DIR=$(dirname "$(readlink -f "$0")")
 SING_SCRIPT_PATH="${MANAGER_DIR}/singdocker.sh"
 XRAY_SCRIPT_PATH="${MANAGER_DIR}/xdocker.sh"
+NEZHA_SCRIPT_PATH="${MANAGER_DIR}/nezha.sh"
 STATUS_FILE="${MANAGER_DIR}/install_status_docker.conf"
 DOCKER_MODE="${DOCKER_MODE:-1}"
 
@@ -47,8 +48,8 @@ is_xray_installed() {
 }
 
 ensure_scripts_exist() {
-    if [ ! -f "$SING_SCRIPT_PATH" ] || [ ! -f "$XRAY_SCRIPT_PATH" ]; then
-        print_msg "错误: singdocker.sh 或 xdocker.sh 脚本未在同一目录下找到。" red
+    if [ ! -f "$SING_SCRIPT_PATH" ] || [ ! -f "$XRAY_SCRIPT_PATH" ] || [ ! -f "$NEZHA_SCRIPT_PATH" ]; then
+        print_msg "错误: singdocker.sh、xdocker.sh 或 nezha.sh 脚本未在同一目录下找到。" red
         exit 1
     fi
 }
@@ -121,7 +122,16 @@ do_install() {
         grep -q "XRAY_INSTALLED=true" "$STATUS_FILE" || echo "XRAY_INSTALLED=true" >> "$STATUS_FILE"
     fi
 
-    if [ -z "$sing_choices" ] && ! is_true "${NODE4:-}"; then
+    if [ -n "${NEZHA_SERVER:-}" ] || [ -n "${NEZHA_KEY:-}" ]; then
+        if [ -z "${NEZHA_SERVER:-}" ] || [ -z "${NEZHA_KEY:-}" ]; then
+            print_msg "启用哪吒探针时必须同时设置 NEZHA_SERVER 与 NEZHA_KEY。" red
+            exit 1
+        fi
+        print_msg "--- 即将调用 nezha.sh 安装哪吒探针 ---" blue
+        bash "$NEZHA_SCRIPT_PATH"
+    fi
+
+    if [ -z "$sing_choices" ] && ! is_true "${NODE4:-}" && [ -z "${NEZHA_SERVER:-}" ] && [ -z "${NEZHA_KEY:-}" ]; then
         print_msg "未选择任何节点，请设置 NODE1/NODE2/NODE3/NODE4。" red
         exit 1
     fi
