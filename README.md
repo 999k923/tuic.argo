@@ -74,6 +74,11 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 
 - `XRAY_SNI`：Reality SNI（如 `microsoft.com`、`cloudflare.com`）
 
+### 哪吒探针（可选）
+
+- `NEZHA_SERVER`：哪吒面板地址（如 `nezha.example.com:8008`）
+- `NEZHA_KEY`：哪吒 V1 客户端密钥（NZ_CLIENT_SECRET）
+
 ### AnyTLS (NODE3) 必需变量
 
 - `CF_EMAIL`：Cloudflare 账户邮箱
@@ -134,6 +139,8 @@ docker run -d \
   -e ARGO_PROTOCOL=vless \
   -e ARGO_TOKEN=your_argo_token \
   -e ARGO_DOMAIN=your.argo.domain.com \
+  -e NEZHA_SERVER=nezha.example.com:8008 \
+  -e NEZHA_KEY=your_nezha_v1_secret \
   -v /data/tuic/agsbx:/root/agsbx \
   -v /data/tuic/xray:/etc/xray \
   999k923/tuic-argo:latest
