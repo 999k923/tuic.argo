@@ -84,17 +84,16 @@ do_install() {
     print_msg "  3) 安装 AnyTLS (使用 CF 证书)"
     print_msg "--- Xray (x.sh) ---"
     print_msg "  4) 安装 VLESS + Vision + Reality"
-    print_msg "  5) 安装 Hysteria 2"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
 
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
     # 分离选项给 sing.sh 和 x.sh
     SING_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^[1-3]$' | tr '\n' ',' | sed 's/,$//')
-    XRAY_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^[45]$' | tr '\n' ',' | sed 's/,$//')
+    XRAY_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^4$' | tr '\n' ',' | sed 's/,$//')
 
     if [ -z "$SING_CHOICES" ] && [ -z "$XRAY_CHOICES" ]; then
-        print_msg "无效选项，请输入 1, 2, 3, 4, 5 中的一个或多个（用逗号分隔）。" red
+        print_msg "无效选项，请输入 1, 2, 3, 4 中的一个或多个（用逗号分隔）。" red
         exit 1
     fi
 
@@ -112,8 +111,8 @@ do_install() {
 
     # 执行 x.sh 安装
     if [ -n "$XRAY_CHOICES" ]; then
-        print_msg "\n--- 即将调用 x.sh 进行安装 (选项: ${XRAY_CHOICES}) ---" blue
-        bash "$XRAY_SCRIPT_PATH" install_from_manager "${XRAY_CHOICES}"
+        print_msg "\n--- 即将调用 x.sh 进行安装 ---" blue
+        bash "$XRAY_SCRIPT_PATH"
         if [ $? -eq 0 ]; then
             grep -q "XRAY_INSTALLED=true" "$STATUS_FILE" || echo "XRAY_INSTALLED=true" >> "$STATUS_FILE"
             print_msg "x.sh 安装部分完成。" green
@@ -176,7 +175,7 @@ show_help() {
     echo ""
     echo "核心命令:"
     echo "  install    - 显示交互式菜单，安装一个或多个节点方案"
-    echo "  list       - 显示所已安装节点的分享链接"
+    echo "  list       - 显示所有已安装节点的分享链接"
     echo "  start      - 启动所有已安装的节点服务"
     echo "  stop       - 停止所有已安装的节点服务"
     echo "  restart    - 重启所有已安装的节点服务"
