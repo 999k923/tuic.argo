@@ -79,6 +79,11 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 - `NEZHA_SERVER`：哪吒面板地址（如 `nezha.example.com:8008`）
 - `NEZHA_KEY`：哪吒 V1 客户端密钥（NZ_CLIENT_SECRET）
 
+### 节点信息 HTTP 服务（可选）
+
+- `PORT0`：节点信息 HTTP 服务端口（默认 `18080`）
+- `HTTP_SERVER`：是否启用节点信息 HTTP 服务（默认 `true`）
+
 ### AnyTLS (NODE3) 必需变量
 
 - `CF_EMAIL`：Cloudflare 账户邮箱
@@ -120,6 +125,7 @@ docker run -d \
 ```
 
 # 全部安装的示例
+-e PORT0=25000，可自行更改端口号。安装日志里面就可以看到节点信息，如果平台看不到日志才需要加上http端口服务。
 ```bash
 docker run -d \
   --name tuic-argo \
@@ -132,6 +138,7 @@ docker run -d \
   -e PORT2=21410 \
   -e PORT3=21420 \
   -e PORT4=21400 \
+  -e PORT0=25000 \
   -e XRAY_SNI=cloudflare.com \
   -e CF_EMAIL=your@email.com \
   -e CF_API_KEY=your_cf_global_api_key \
