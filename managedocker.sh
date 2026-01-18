@@ -18,6 +18,8 @@ XRAY_SCRIPT_PATH="${MANAGER_DIR}/xdocker.sh"
 NEZHA_SCRIPT_PATH="${MANAGER_DIR}/nezha.sh"
 STATUS_FILE="${MANAGER_DIR}/install_status_docker.conf"
 DOCKER_MODE="${DOCKER_MODE:-1}"
+PORT0="${PORT0:-18080}"
+HTTP_SERVER="${HTTP_SERVER:-true}"
 
 touch "$STATUS_FILE" 2>/dev/null
 
@@ -157,6 +159,7 @@ do_list() {
 do_start() {
     if is_sing_installed; then bash "$SING_SCRIPT_PATH" start; fi
     if is_xray_installed; then bash "$XRAY_SCRIPT_PATH" start; fi
+    start_http_server
 }
 
 do_stop() {
@@ -177,11 +180,26 @@ show_help() {
     echo "  help       - 显示此帮助信息"
 }
 
+start_http_server() {
+    if ! is_true "${HTTP_SERVER:-}"; then
+        return
+    fi
+    if pgrep -f "node_info_server.py" >/dev/null 2>&1; then
+        return
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        print_msg "未找到 python3，无法启动节点信息 HTTP 服务。" yellow
+        return
+    fi
+    PORT0="$PORT0" nohup python3 /app/node_info_server.py >/app/node_info_server.log 2>&1 &
+    print_msg "节点信息 HTTP 服务已启动，监听端口 ${PORT0}" green
+}
+
 case "${1:-}" in
     install)   do_install ;;
     list)      do_list ;;
     start)     do_start ;;
     stop)      do_stop ;;
-    run)       do_install; tail -f /dev/null ;;
+    run)       do_install; start_http_server; tail -f /dev/null ;;
     help|*)    show_help ;;
 esac
