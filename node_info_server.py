@@ -30,14 +30,23 @@ class NodeInfoHandler(http.server.BaseHTTPRequestHandler):
         return
 
 
-class ReusableTCPServer(socketserver.TCPServer):
+class DualStackTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+    address_family = socketserver.socket.AF_INET6
+
+
+class IPv4TCPServer(socketserver.TCPServer):
     allow_reuse_address = True
 
 
 def main():
     port = int(os.getenv("PORT0", "18080"))
-    with ReusableTCPServer(("0.0.0.0", port), NodeInfoHandler) as httpd:
-        httpd.serve_forever()
+    try:
+        with DualStackTCPServer(("::", port), NodeInfoHandler) as httpd:
+            httpd.serve_forever()
+    except OSError:
+        with IPv4TCPServer(("0.0.0.0", port), NodeInfoHandler) as httpd:
+            httpd.serve_forever()
 
 
 if __name__ == "__main__":
