@@ -478,9 +478,9 @@ ingress:
     service: http://127.0.0.1:${ARGO_LOCAL_PORT}
   - service: http_status:404
 EOF
-            nohup "$CLOUDFLARED_PATH" tunnel --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
+            nohup "$CLOUDFLARED_PATH" tunnel --protocol http2 --config "$AGSBX_DIR/config.yml" run --token "$ARGO_TOKEN" > "$AGSBX_DIR/argo.log" 2>&1 &
         else
-            nohup "$CLOUDFLARED_PATH" tunnel --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
+            nohup "$CLOUDFLARED_PATH" tunnel --protocol http2 --url "http://127.0.0.1:${ARGO_LOCAL_PORT}" > "$AGSBX_DIR/argo.log" 2>&1 &
         fi
     fi
     print_msg "服务已启动" green
