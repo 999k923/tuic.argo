@@ -79,7 +79,7 @@ ingress:
   - service: http_status:404
 EOF
 
-        nohup "$CLOUDFLARED_PATH" tunnel --config "$CONFIG_YML" run --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
+        nohup "$CLOUDFLARED_PATH" tunnel --protocol http2 --config "$CONFIG_YML" run --token "$ARGO_TOKEN" >> "$LOG_FILE" 2>&1 &
         sleep 2
     fi
 }
