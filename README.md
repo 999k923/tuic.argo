@@ -62,6 +62,7 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 - `NODE2`：安装 Argo 隧道 (VLESS/VMess)
 - `NODE3`：安装 AnyTLS (Cloudflare 证书)
 - `NODE4`：安装 VLESS + Vision + Reality
+- `NODE5`：安装 HY2 (Hysteria2)
 
 ### 端口变量（对应 4 个节点）
 
@@ -69,6 +70,7 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 - `PORT2`：Argo 本地监听端口（默认 8080）
 - `PORT3`：AnyTLS 端口（默认 443）
 - `PORT4`：Reality 监听端口（默认 8443）
+- `PORT5`：HY2 端口（默认 20801）
 
 ### Reality (NODE4) 必需变量
 
@@ -134,10 +136,12 @@ docker run -d \
   -e NODE2=true \
   -e NODE3=true \
   -e NODE4=true \
+  -e NODE5=true \
   -e PORT1=21300 \
   -e PORT2=21410 \
   -e PORT3=21420 \
   -e PORT4=21400 \
+  -e PORT5=21430 \
   -e PORT0=25000 \
   -e XRAY_SNI=cloudflare.com \
   -e CF_EMAIL=your@email.com \
