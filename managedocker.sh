@@ -61,6 +61,7 @@ apply_port_env() {
     if [ -n "${PORT2:-}" ]; then export ARGO_LOCAL_PORT="$PORT2"; fi
     if [ -n "${PORT3:-}" ]; then export ANYTLS_PORT="$PORT3"; fi
     if [ -n "${PORT4:-}" ]; then export XRAY_PORT="$PORT4"; fi
+    if [ -n "${PORT5:-}" ]; then export HY2_PORT1="$PORT5"; fi
 
     if is_true "${NODE1:-}" && [ -z "${TUIC_PORT:-}" ]; then
         export TUIC_PORT="443"
@@ -73,6 +74,9 @@ apply_port_env() {
     fi
     if is_true "${NODE4:-}" && [ -z "${XRAY_PORT:-}" ]; then
         export XRAY_PORT="8443"
+    fi
+    if is_true "${NODE5:-}" && [ -z "${HY2_PORT1:-}" ]; then
+        export HY2_PORT1="20801"
     fi
 }
 
@@ -95,6 +99,7 @@ build_sing_choices() {
     if is_true "${NODE1:-}"; then choices+=("1"); fi
     if is_true "${NODE2:-}"; then choices+=("2"); fi
     if is_true "${NODE3:-}"; then choices+=("3"); fi
+    if is_true "${NODE5:-}"; then choices+=("5"); fi
     if [ ${#choices[@]} -eq 0 ]; then
         echo ""
         return
@@ -134,7 +139,7 @@ do_install() {
     fi
 
     if [ -z "$sing_choices" ] && ! is_true "${NODE4:-}" && [ -z "${NEZHA_SERVER:-}" ] && [ -z "${NEZHA_KEY:-}" ]; then
-        print_msg "未选择任何节点，请设置 NODE1/NODE2/NODE3/NODE4。" red
+        print_msg "未选择任何节点，请设置 NODE1/NODE2/NODE3/NODE4/NODE5。" red
         exit 1
     fi
 
