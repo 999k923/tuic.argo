@@ -104,6 +104,10 @@ is_selected() {
     [[ ",$INSTALL_CHOICE," =~ ,$choice, ]]
 }
 
+is_hy2_selected() {
+    is_selected 5
+}
+
 # --- 证书申请逻辑 ---
 install_acme() {
     # 1. 补齐隐性依赖 (perl, socat, cron)
@@ -264,12 +268,13 @@ do_install() {
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 安装 AnyTLS (使用 CF 证书)"
+    print_msg "  5) 安装 HY2 (Hysteria2)"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
     
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
-    if [[ ! "$INSTALL_CHOICE" =~ ^[123](,[123])*$ ]]; then
-        print_msg "无效选项，请输入 1, 2, 3 中的一个或多个（用逗号分隔）。" red
+    if [[ ! "$INSTALL_CHOICE" =~ ^([1-3]|5)(,([1-3]|5))*$ ]]; then
+        print_msg "无效选项，请输入 1-3 或 5 中的一个或多个（用逗号分隔）。" red
         exit 1
     fi
     
@@ -333,6 +338,20 @@ fi
         echo "ANYTLS_PORT=${ANYTLS_PORT}" >> "$VARS_PATH"
     fi
 
+    if is_selected 5; then
+        local hy2_port_value
+        local hy2_pass_value
+        read -rp "$(printf "${C_GREEN}请输入 HY2 监听端口 (默认 20801): ${C_NC}")" hy2_port_value
+        hy2_port_value=${hy2_port_value:-20801}
+        echo "HY2_PORT1=${hy2_port_value}" >> "$VARS_PATH"
+
+        hy2_pass_value="${HY2_PASS1:-}"
+        if [ -z "$hy2_pass_value" ]; then
+            hy2_pass_value=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+        fi
+        echo "HY2_PASS1='${hy2_pass_value}'" >> "$VARS_PATH"
+    fi
+
     # 手动指定 IPv6（可选）
     read -rp "$(printf "${C_GREEN}如果你是 NAT IPv6，请输入公网 IPv6，否则直接回车自动获取: ${C_NC}")" SERVER_IPV6
     [ -n "$SERVER_IPV6" ] && echo "SERVER_IPV6='${SERVER_IPV6}'" >> "$VARS_PATH"
@@ -369,9 +388,9 @@ fi
     # TLS 证书处理
     if is_selected 3; then
         issue_cf_cert
-    elif is_selected 1; then
+    elif is_selected 1 || is_hy2_selected; then
         if ! command -v openssl >/dev/null 2>&1; then
-            print_msg "⚠️ openssl 未安装  ，请先安装 openssl" red
+            print_msg "️ openssl 未安装  ，请先安装 openssl" red
             exit 1
         fi
         print_msg "正在生成 TUIC 自签名证书..." yellow
@@ -448,6 +467,10 @@ do_generate_config() {
             "alpn": ["h2", "http/1.1"]
           }
         }' "$ANYTLS_PORT" "$ANYTLS_PASS" "$ANYTLS_DOMAIN" "$CERT_PATH" "$KEY_PATH")")
+    fi
+
+    if is_selected 5; then
+        inbounds+=("$(printf '{"type":"hysteria2","tag":"hy2-1","listen":"::","listen_port":%s,"users":[{"password":"%s"}],"tls":{"enabled":true,"certificate_path":"%s","key_path":"%s"}}' "$HY2_PORT1" "$HY2_PASS1" "$CERT_PATH" "$KEY_PATH")")
     fi
 
     # 拼接 inbounds
@@ -548,6 +571,19 @@ fi
         # 使用从 VARS_PATH 读取的 ANYTLS_PASS
         echo "anytls://${ANYTLS_PASS}@${server_ip}:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
         echo "anytls://${ANYTLS_PASS}@[${server_ipv6}]:${ANYTLS_PORT}?sni=${ANYTLS_DOMAIN}#anytls-${hostname}"
+    fi
+
+    local hy2_sni="www.bing.com"
+    local hy2_insecure="1"
+    if is_selected 3; then
+        hy2_sni="$ANYTLS_DOMAIN"
+        hy2_insecure="0"
+    fi
+
+    if is_selected 5; then
+        print_msg "--- HY2 ---" yellow
+        echo "hysteria2://${HY2_PASS1}@${server_ip}:${HY2_PORT1}?sni=${hy2_sni}&insecure=${hy2_insecure}#hy2-${hostname}"
+        echo "hysteria2://${HY2_PASS1}@[${server_ipv6}]:${HY2_PORT1}?sni=${hy2_sni}&insecure=${hy2_insecure}#hy2-${hostname}"
     fi
 
 }
