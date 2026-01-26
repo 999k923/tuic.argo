@@ -77,11 +77,12 @@ do_install() {
     ensure_openssl
 
     print_msg "--- 节点统一安装向导 ---" blue
-    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,4 或 1,2,4):" yellow
+    print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,4 或 1,2,5):" yellow
     print_msg "--- sing-box (sing.sh) ---"
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
     print_msg "  3) 安装 AnyTLS (使用 CF 证书)"
+    print_msg "  5) 安装 HY2 (Hysteria2)"
     print_msg "--- Xray (x.sh) ---"
     print_msg "  4) 安装 VLESS + Vision + Reality"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
@@ -89,11 +90,11 @@ do_install() {
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
     # 分离选项给 sing.sh 和 x.sh
-    SING_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^[1-3]$' | tr '\n' ',' | sed 's/,$//')
+    SING_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^([1-3]|5)$' | tr '\n' ',' | sed 's/,$//')
     XRAY_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^4$' | tr '\n' ',' | sed 's/,$//')
 
     if [ -z "$SING_CHOICES" ] && [ -z "$XRAY_CHOICES" ]; then
-        print_msg "无效选项，请输入 1, 2, 3, 4 中的一个或多个（用逗号分隔）。" red
+        print_msg "无效选项，请输入 1, 2, 3, 4, 5 中的一个或多个（用逗号分隔）。" red
         exit 1
     fi
 
