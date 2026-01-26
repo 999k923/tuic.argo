@@ -6,8 +6,9 @@
 2) 安装 Argo 隧道 (VLESS 或 VMess)"
 3) 安装 AnyTLS (使用CF域名证书，需要自定义域名A记录到vps)"(域名可以自己加放一个静态网页https可以访问增强隐蔽性)
 4) 安装 VLESS-TCP-XTLS-Vision-REALITY，当前代理/隧道体系里的「顶级 / T0～T1 级别方案」，属于 高对抗、高隐蔽、低特征 的现代协议组合，直连协议，速度快不快就看vps和协议无关
+5) 安装 HY2 (Hysteria2)
 
-####       1,2,3是sing-box内核，4是xray内核。
+####       1,2,3,5是sing-box内核，4是xray内核。
 
 
 这是一键安装的命令。
@@ -64,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 - `NODE4`：安装 VLESS + Vision + Reality
 - `NODE5`：安装 HY2 (Hysteria2)
 
-### 端口变量（对应 4 个节点）
+### 端口变量（对应 5 个节点）
 
 - `PORT1`：TUIC 端口（默认 443）
 - `PORT2`：Argo 本地监听端口（默认 8080）
