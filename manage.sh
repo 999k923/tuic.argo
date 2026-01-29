@@ -170,6 +170,36 @@ do_uninstall() {
     print_msg "✅ 所有节点卸载完成。" green
 }
 
+do_set_ip_preference() {
+    print_msg "--- 设置所有节点出口 IP 优先级 ---" blue
+    print_msg "请选择出口优先级:" yellow
+    print_msg "  1) IPv4 优先"
+    print_msg "  2) IPv6 优先"
+    read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" preference_choice
+
+    case "$preference_choice" in
+        1) preference="ipv4" ;;
+        2) preference="ipv6" ;;
+        *) print_msg "无效选项，请输入 1 或 2。" red; exit 1 ;;
+    esac
+
+    if is_sing_installed; then
+        print_msg "正在更新 sing.sh 节点出口设置..." blue
+        bash "$SING_SCRIPT_PATH" set-ip-preference "$preference"
+    fi
+    if is_xray_installed; then
+        print_msg "正在更新 x.sh 节点出口设置..." blue
+        bash "$XRAY_SCRIPT_PATH" set-ip-preference "$preference"
+    fi
+
+    if ! is_sing_installed && ! is_xray_installed; then
+        print_msg "未发现任何已安装的节点。请先执行安装。" red
+        exit 1
+    fi
+
+    print_msg "✅ 所有节点出口优先级已更新为: $preference" green
+}
+
 show_help() {
     print_msg "All-in-One Proxy Manager" blue
     echo "用法: bash $0 [命令]"
@@ -180,6 +210,7 @@ show_help() {
     echo "  start      - 启动所有已安装的节点服务"
     echo "  stop       - 停止所有已安装的节点服务"
     echo "  restart    - 重启所有已安装的节点服务"
+    echo "  set-ip-preference - 设置所有节点出口优先 IPv4 或 IPv6"
     echo "  uninstall  - 卸载所有通过此脚本安装的节点和文件"
     echo "  help       - 显示此帮助信息"
 }
@@ -197,6 +228,7 @@ case "$1" in
     start)     do_start ;;
     stop)      do_stop ;;
     restart)   do_restart ;;
+    set-ip-preference) do_set_ip_preference ;;
     uninstall) do_uninstall ;;
     help|*)    show_help ;;
 esac
