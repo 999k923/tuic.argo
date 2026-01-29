@@ -55,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 ```
 根据提示选择 IPv4 或 IPv6，会自动刷新配置并重启对应服务。
 
-### 如何验证是否生效
+### 如何验证IP优先级出口是否生效
 1) 查看配置文件是否已写入对应策略：
 ```bash
 grep -n "domain_strategy" ~/agsbx/sb.json
