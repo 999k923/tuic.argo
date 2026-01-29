@@ -53,6 +53,16 @@ load_variables() {
     [ -f "$VARS_PATH" ] && . "$VARS_PATH"
 }
 
+set_variable() {
+    local key="$1"
+    local value="$2"
+    if [ -f "$VARS_PATH" ] && grep -q "^${key}=" "$VARS_PATH"; then
+        sed -i "s/^${key}=.*/${key}='${value}'/" "$VARS_PATH"
+    else
+        echo "${key}='${value}'" >> "$VARS_PATH"
+    fi
+}
+
 # 检查选项是否被选中
 is_selected() {
     local choice=$1
@@ -102,6 +112,17 @@ do_stop() {
     print_msg "✅ 节点已停止" green
 }
 
+do_restart() {
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl restart "$SYSTEMD_SERVICE"
+    elif command -v rc-service >/dev/null 2>&1; then
+        rc-service xray restart
+    else
+        do_stop
+        do_start
+    fi
+}
+
 do_uninstall() {
     if [ -z "$1" ] || [ "$1" != "force" ]; then
         read -rp "$(printf "${C_YELLOW}⚠️ 确认卸载 VLESS + Vision + Reality 节点？(y/n): ${C_NC}")" confirm
@@ -117,6 +138,36 @@ do_uninstall() {
     fi
     rm -rf "$XCONF_DIR" /var/log/xray /usr/local/bin/xray
     print_msg "✅ 卸载完成" green
+}
+
+set_ip_preference() {
+    local preference="$1"
+    local strategy
+
+    if [ ! -f "$VARS_PATH" ] || [ ! -f "$XCONF_DIR/config.json" ]; then
+        print_msg "❌ 未找到已安装的配置文件，请先安装节点" red
+        exit 1
+    fi
+
+    case "$preference" in
+        ipv4) strategy="UseIPv4" ;;
+        ipv6) strategy="UseIPv6" ;;
+        *) print_msg "❌ 无效参数，请使用 ipv4 或 ipv6" red; exit 1 ;;
+    esac
+
+    if ! command -v jq >/dev/null 2>&1; then
+        print_msg "❌ 缺少 jq，无法修改配置" red
+        exit 1
+    fi
+
+    jq --arg strategy "$strategy" \
+        '(.outbounds[] | select(.tag=="direct" and .protocol=="freedom")).domainStrategy=$strategy' \
+        "$XCONF_DIR/config.json" > "$XCONF_DIR/config.json.tmp"
+    mv "$XCONF_DIR/config.json.tmp" "$XCONF_DIR/config.json"
+
+    set_variable "OUTBOUND_IP_PREFERENCE" "$preference"
+    do_restart
+    print_msg "出口 IP 优先级已更新为: $preference" green
 }
 
 # --- 安装流程 ---
@@ -311,6 +362,7 @@ show_help() {
     echo "  show-uri              - 输出分享链接"
     echo "  start                 - 启动服务"
     echo "  stop                  - 停止服务"
+    echo "  set-ip-preference     - 设置出口优先 IPv4 或 IPv6"
     echo "  uninstall             - 卸载服务"
     echo "  help                  - 显示此帮助信息"
 }
@@ -322,6 +374,7 @@ case "$1" in
     show-uri)             show_uri ;;
     start)                do_start ;;
     stop)                 do_stop ;;
+    set-ip-preference)    set_ip_preference "$2" ;;
     uninstall)            do_uninstall "$2" ;;
     help|-h|--help)       show_help ;;
     "")                   do_install ;;
