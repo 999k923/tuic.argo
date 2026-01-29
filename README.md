@@ -55,6 +55,23 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 ```
 根据提示选择 IPv4 或 IPv6，会自动刷新配置并重启对应服务。
 
+### 如何验证是否生效
+1) 查看配置文件是否已写入对应策略：
+```bash
+grep -n "domain_strategy" ~/agsbx/sb.json
+grep -n "domainStrategy" /etc/xray/config.json
+```
+其中 `prefer_ipv4 / prefer_ipv6` 对应 sing-box，`UseIPv4 / UseIPv6` 对应 Xray。
+
+2) 从客户端走节点访问同时支持 IPv4/IPv6 的域名，观察实际出口：
+```bash
+# 例：必须在客户端通过你的代理访问，查看返回的出口 IP，假如客户端代理端口10808
+curl --socks5-hostname 127.0.0.1:10808 https://icanhazip.com && echo
+curl --socks5-hostname 127.0.0.1:10808 https://api64.ipify.org && echo
+curl --socks5-hostname 127.0.0.1:10808 https://ifconfig.co/ip && echo
+curl --socks5-hostname 127.0.0.1:10808 https://ipinfo.io/ip && echo
+
+```
 
 
 
