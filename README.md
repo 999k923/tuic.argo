@@ -48,6 +48,13 @@ curl -fsSL https://raw.githubusercontent.com/999k923/tuic.argo/refs/heads/main/s
 ```
 脚本会请求您输入 y 确认，以防止误操作。
 
+## 修改出口 IP 优先级（IPv4/IPv6）
+安装完成后依然可以随时切换所有节点的出口优先级：
+```bash
+./manage.sh set-ip-preference
+```
+根据提示选择 IPv4 或 IPv6，会自动刷新配置并重启对应服务。
+
 
 
 
