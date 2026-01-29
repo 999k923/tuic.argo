@@ -59,6 +59,24 @@ load_variables() {
     [ -f "$VARS_PATH" ] && . "$VARS_PATH"
 }
 
+set_variable() {
+    local key="$1"
+    local value="$2"
+    if [ -f "$VARS_PATH" ] && grep -q "^${key}=" "$VARS_PATH"; then
+        sed -i "s/^${key}=.*/${key}='${value}'/" "$VARS_PATH"
+    else
+        echo "${key}='${value}'" >> "$VARS_PATH"
+    fi
+}
+
+get_domain_strategy() {
+    case "$OUTBOUND_IP_PREFERENCE" in
+        ipv4) echo "prefer_ipv4" ;;
+        ipv6) echo "prefer_ipv6" ;;
+        *) echo "" ;;
+    esac
+}
+
 # --- 获取 IPv4/IPv6 ---
 get_server_ip() {
     local ipv4
@@ -417,7 +435,16 @@ fi
 do_generate_config() {
     load_variables
     local inbounds=()
+    local outbound_domain_strategy
+    local outbound_json
 
+    outbound_domain_strategy=$(get_domain_strategy)
+    outbound_json='{"type":"direct","tag":"direct"'
+    if [ -n "$outbound_domain_strategy" ]; then
+        outbound_json="${outbound_json},\"domain_strategy\":\"${outbound_domain_strategy}\""
+    fi
+    outbound_json="${outbound_json}}"
+    
     # TUIC Inbound
     if is_selected 1; then
         inbounds+=("$(printf '{"type":"tuic","tag":"tuic-in","listen":"::","listen_port":%s,"users":[{"uuid":"%s","password":"%s"}],"congestion_control":"bbr","tls":{"enabled":true,"server_name":"www.bing.com","alpn":["h3"],"certificate_path":"%s","key_path":"%s"}}' "$TUIC_PORT" "$UUID" "$UUID" "$CERT_PATH" "$KEY_PATH")")
@@ -435,11 +462,12 @@ do_generate_config() {
     # AnyTLS（标准配置，保留变量 + 随机 password + padding）
     if is_selected 3; then
         # 生成每次运行随机密码，16 位字母数字
-        ANYTLS_PASS=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
-
+        if [ -z "$ANYTLS_PASS" ]; then
+            ANYTLS_PASS=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+            set_variable "ANYTLS_PASS" "$ANYTLS_PASS"
+        fi
+        
         # 写入变量文件，确保 do_list 可以读取
-        echo "ANYTLS_PASS='${ANYTLS_PASS}'" >> "$VARS_PATH"
-
         # padding_scheme 数组（示例，可根据需求修改）
         inbounds+=("$(printf '{
           "type":"anytls",
@@ -480,7 +508,7 @@ do_generate_config() {
 {
   "log": {"level": "info", "timestamp": true},
   "inbounds": [${inbounds_json}],
-  "outbounds": [{"type": "direct", "tag": "direct"}]
+  "outbounds": [${outbound_json}]
 }
 EOF
     print_msg "配置文件已生成: $CONFIG_PATH" green
@@ -604,7 +632,24 @@ do_uninstall() {
 show_help() {
     print_msg "All-in-One TUIC & VLESS/VMess+Argo 管理脚本 (sing.sh)" blue
     echo "用法: bash $0 [命令]"
-    echo "命令: install | list | start | stop | restart | uninstall | help"
+    echo "命令: install | list | start | stop | restart | uninstall | set-ip-preference | help"
+}
+
+set_ip_preference() {
+    local preference="$1"
+    if [ ! -f "$VARS_PATH" ]; then
+        print_msg "未找到配置文件，请先安装。" red
+        exit 1
+    fi
+    case "$preference" in
+        ipv4|ipv6) ;;
+        *) print_msg "无效参数，请使用 ipv4 或 ipv6。" red; exit 1 ;;
+    esac
+    set_variable "OUTBOUND_IP_PREFERENCE" "$preference"
+    load_variables
+    do_generate_config
+    do_restart
+    print_msg "出口 IP 优先级已更新为: $preference" green
 }
 
 # --- 主逻辑 ---
@@ -630,6 +675,9 @@ case "$1" in
     uninstall) 
         # 允许 manage.sh 强制卸载
         do_uninstall "$2"
+        ;;
+    set-ip-preference)
+        set_ip_preference "$2"
         ;;
     help|*) 
         show_help 
