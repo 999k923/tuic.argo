@@ -121,6 +121,33 @@ is_hy2_selected() {
     is_selected 5
 }
 
+should_reuse_existing_config() {
+    local requested_choice="$1"
+    if ! is_docker_mode; then
+        return 1
+    fi
+    if [ ! -f "$VARS_PATH" ] || [ ! -f "$CONFIG_PATH" ]; then
+        return 1
+    fi
+    load_variables
+    if [ -z "${INSTALL_CHOICE:-}" ]; then
+        return 1
+    fi
+    if [ "$INSTALL_CHOICE" != "$requested_choice" ]; then
+        return 1
+    fi
+    if [ -z "${UUID:-}" ]; then
+        return 1
+    fi
+    if is_selected 3 && [ -z "${ANYTLS_PASS:-}" ]; then
+        return 1
+    fi
+    if is_selected 5 && [ -z "${HY2_PASS1:-}" ]; then
+        return 1
+    fi
+    return 0
+}
+
 # --- 证书申请逻辑 ---
 install_acme() {
     # 1. 补齐隐性依赖 (perl, socat, cron)
@@ -313,6 +340,14 @@ execute_installation() {
     local INSTALL_CHOICE="$1"
     
     mkdir -p "$AGSBX_DIR"
+    if should_reuse_existing_config "$INSTALL_CHOICE"; then
+        print_msg "检测到已有配置，跳过重新生成，直接启动服务。" yellow
+        do_start
+        print_msg "\n--- 已有配置启动完成，节点信息如下 ---" blue
+        do_list
+        return
+    fi
+    
     # 预设权限
     touch "$VARS_PATH"
     chmod 600 "$VARS_PATH"
@@ -447,10 +482,14 @@ fi
         print_msg "已生成 TUIC 自签名证书。" yellow
     fi
 
-    # 生成 UUID
-    UUID=$($SINGBOX_PATH generate uuid)
+    # 生成 UUID（存在则复用）
+    if [ -n "${UUID:-}" ]; then
+        print_msg "复用已存在 UUID: $UUID" yellow
+    else
+        UUID=$($SINGBOX_PATH generate uuid)
+        print_msg "生成 UUID: $UUID" yellow
+    fi
     echo "UUID='${UUID}'" >> "$VARS_PATH"
-    print_msg "生成 UUID: $UUID" yellow
 
     # 生成 sing-box 配置
     do_generate_config
@@ -481,8 +520,10 @@ do_generate_config() {
 
     # AnyTLS（标准配置，保留变量 + 随机 password + padding）
     if is_selected 3; then
-        # 生成每次运行随机密码，16 位字母数字
-        ANYTLS_PASS=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+       if [ -z "${ANYTLS_PASS:-}" ]; then
+            # 生成随机密码，16 位字母数字
+            ANYTLS_PASS=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+        fi
 
         # 写入变量文件，确保 do_list 可以读取
         echo "ANYTLS_PASS='${ANYTLS_PASS}'" >> "$VARS_PATH"
