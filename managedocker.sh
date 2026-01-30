@@ -205,6 +205,14 @@ case "${1:-}" in
     list)      do_list ;;
     start)     do_start ;;
     stop)      do_stop ;;
-    run)       do_install; start_http_server; tail -f /dev/null ;;
+    run)
+        if is_sing_installed || is_xray_installed; then
+            do_start
+        else
+            do_install
+        fi
+        start_http_server
+        tail -f /dev/null
+        ;;
     help|*)    show_help ;;
 esac
