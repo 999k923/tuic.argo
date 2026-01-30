@@ -88,6 +88,13 @@ case "$1" in
         ;;
 esac
 
+# Docker 模式下如已存在配置则跳过重装
+if is_docker_mode && [ -x "$XRAY_BIN" ] && [ -f "$XRAY_CONFIG" ] && [ -f "$XCONF_DIR/xray-vars.conf" ]; then
+    print_msg "检测到已有配置，跳过重新安装，直接启动服务。" yellow
+    start_xray
+    exit 0
+fi
+
 # --- 从这里开始是安装流程 ---
 
 # 1️⃣ 基础依赖
