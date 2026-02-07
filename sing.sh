@@ -252,10 +252,6 @@ issue_cf_cert() {
 
 # --- 1. 在脚本开头或合适位置添加优选逻辑 ---
 CF_DOMAINS=(
-    "cf.090227.xyz"
-    "cf.877774.xyz"
-    "cf.130519.xyz"
-    "cf.008500.xyz"
     "store.ubi.com"
     "saas.sin.fan"
     "cdns.doon.eu.org"
