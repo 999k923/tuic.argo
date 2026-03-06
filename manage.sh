@@ -17,6 +17,7 @@ SING_SCRIPT_PATH="${MANAGER_DIR}/sing.sh"
 XRAY_SCRIPT_PATH="${MANAGER_DIR}/x.sh"
 STATUS_FILE="${MANAGER_DIR}/install_status.conf"
 touch "$STATUS_FILE" 2>/dev/null
+
 # --- 辅助函数 ---
 print_msg() {
     case "$2" in
@@ -26,6 +27,35 @@ print_msg() {
         blue)   printf "${C_BLUE}%s\n" "$1";;
         *)      printf "%s\n" "$1";;
     esac
+}
+
+# 绿色打印函数（兼容用户提供的代码片段）
+green() {
+    print_msg "$1" green
+}
+
+# 关闭防火墙函数
+do_close_firewall() {
+    print_msg "正在执行开放端口，关闭防火墙..." yellow
+    systemctl stop firewalld.service >/dev/null 2>&1
+    systemctl disable firewalld.service >/dev/null 2>&1
+    setenforce 0 >/dev/null 2>&1
+    ufw disable >/dev/null 2>&1
+    iptables -P INPUT ACCEPT >/dev/null 2>&1
+    iptables -P FORWARD ACCEPT >/dev/null 2>&1
+    iptables -P OUTPUT ACCEPT >/dev/null 2>&1
+    iptables -t mangle -F >/dev/null 2>&1
+    iptables -F >/dev/null 2>&1
+    iptables -X >/dev/null 2>&1
+    netfilter-persistent save >/dev/null 2>&1
+    if [[ -n $(apachectl -v 2>/dev/null) ]]; then
+        systemctl stop httpd.service >/dev/null 2>&1
+        systemctl disable httpd.service >/dev/null 2>&1
+        service apache2 stop >/dev/null 2>&1
+        systemctl disable apache2 >/dev/null 2>&1
+    fi
+    sleep 1
+    green "执行开放端口，关闭防火墙完毕"
 }
 
 # 新增：检查并安装 OpenSSL
@@ -78,6 +108,7 @@ do_install() {
 
     print_msg "--- 节点统一安装向导 ---" blue
     print_msg "请选择您要安装的节点类型 (支持多选，如输入 1,4 或 1,2,5):" yellow
+    print_msg "  0) 关闭防火墙 (开放所有端口)"
     print_msg "--- sing-box (sing.sh) ---"
     print_msg "  1) 安装 TUIC"
     print_msg "  2) 安装 Argo 隧道 (VLESS 或 VMess)"
@@ -89,12 +120,17 @@ do_install() {
 
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
 
+    # 处理选项 0 (关闭防火墙)
+    if echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -q '^0$'; then
+        do_close_firewall
+    fi
+
     # 分离选项给 sing.sh 和 x.sh
     SING_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^([1-3]|5)$' | tr '\n' ',' | sed 's/,$//')
     XRAY_CHOICES=$(echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -E '^4$' | tr '\n' ',' | sed 's/,$//')
 
-    if [ -z "$SING_CHOICES" ] && [ -z "$XRAY_CHOICES" ]; then
-        print_msg "无效选项，请输入 1, 2, 3, 4, 5 中的一个或多个（用逗号分隔）。" red
+    if [ -z "$SING_CHOICES" ] && [ -z "$XRAY_CHOICES" ] && ! echo "$INSTALL_CHOICE" | tr ',' '\n' | grep -q '^0$'; then
+        print_msg "无效选项，请输入 0, 1, 2, 3, 4, 5 中的一个或多个（用逗号分隔）。" red
         exit 1
     fi
 
@@ -122,7 +158,7 @@ do_install() {
         fi
     fi
 
-    print_msg "\n🎉 所有选择的安装任务已执行完毕。" green
+    print_msg "\n🎉 所有选择的任务已执行完毕。" green
 }
 
 do_list() {
