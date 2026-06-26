@@ -115,7 +115,7 @@ do_install() {
     print_msg "  3) 安装 AnyTLS (使用 CF 证书)"
     print_msg "  5) 安装 HY2 (Hysteria2)"
     print_msg "--- Xray (x.sh) ---"
-    print_msg "  4) 安装 VLESS + Vision + Reality"
+    print_msg "  4) 安装 VLESS + XHTTP + Vision + Reality"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
 
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
