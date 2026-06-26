@@ -6,7 +6,7 @@
 1) 安装 TUIC,（自签证书，不需要自定义域名）"
 2) 安装 Argo 隧道 (VLESS 或 VMess)"
 3) 安装 AnyTLS (使用CF域名证书，需要自定义域名A记录到vps)"(域名可以自己加放一个静态网页https可以访问增强隐蔽性)
-4) 安装 VLESS-XHTTP-Vision-REALITY (XHTTP 传输层 + Vision + Reality)，相比旧版 TCP 传输，XHTTP 进一步降低流量特征，配合 xPadding 填充扰乱流量模式，属于 T0 级最高隐蔽方案，直连协议，速度取决于 VPS
+4) 安装 VLESS-TCP-XTLS-Vision-REALITY (经典直连方案，Vision 消除 TLS-in-TLS 指纹，属 T0 级最高隐蔽方案，速度取决于 VPS)
 5) 安装 HY2 (Hysteria2)
 
 ####       1,2,3,5是sing-box内核，4是xray内核。
@@ -90,7 +90,7 @@ curl --socks5-hostname 127.0.0.1:10808 https://ipinfo.io/ip && echo
 - `NODE1`：安装 TUIC
 - `NODE2`：安装 Argo 隧道 (VLESS/VMess)
 - `NODE3`：安装 AnyTLS (Cloudflare 证书)
-- `NODE4`：安装 VLESS + XHTTP + Vision + Reality
+- `NODE4`：安装 VLESS-TCP-XTLS-Vision-REALITY
 - `NODE5`：安装 HY2 (Hysteria2)
 
 ### 端口变量（对应 5 个节点）
