@@ -3,6 +3,7 @@ set -e
 
 # ======================================================================
 #     All-in-One Reality 节点脚本 (x.sh)
+#     VLESS + XHTTP + Vision + Reality (vision-enc 加密编码)
 #     结构与 sing.sh 保持一致，便于扩展更多选项
 # ======================================================================
 
@@ -79,12 +80,12 @@ show_uri() {
     load_variables
     local ip remark
     ip=$(get_public_ip)
-    remark="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
-    echo "vless://${UUID}@${ip}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${remark}"
+    remark="xhttp-reality-ipv4-$(date +%Y%m%d-%H%M)"
+    echo "vless://${UUID}@${ip}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision&type=xhttp&path=%2f${UUID}-xh#${remark}"
 }
 
 do_start() {
-    print_msg "正在启动 VLESS + Vision + Reality 节点..." green
+    print_msg "正在启动 VLESS + XHTTP + Vision + Reality 节点..." green
     if command -v systemctl >/dev/null 2>&1; then
         systemctl daemon-reload
         systemctl enable "$SYSTEMD_SERVICE"
@@ -100,7 +101,7 @@ do_start() {
 }
 
 do_stop() {
-    print_msg "正在停止 VLESS + Vision + Reality 节点..." yellow
+    print_msg "正在停止 VLESS + XHTTP + Vision + Reality 节点..." yellow
     if command -v systemctl >/dev/null 2>&1; then
         systemctl stop "$SYSTEMD_SERVICE" 2>/dev/null || true
         systemctl disable "$SYSTEMD_SERVICE" 2>/dev/null || true
@@ -125,11 +126,11 @@ do_restart() {
 
 do_uninstall() {
     if [ -z "$1" ] || [ "$1" != "force" ]; then
-        read -rp "$(printf "${C_YELLOW}⚠️ 确认卸载 VLESS + Vision + Reality 节点？(y/n): ${C_NC}")" confirm
+        read -rp "$(printf "${C_YELLOW}⚠️ 确认卸载 VLESS + XHTTP + Vision + Reality 节点？(y/n): ${C_NC}")" confirm
         [ "$confirm" != "y" ] && print_msg "取消卸载" green && exit 0
     fi
 
-    print_msg "⚠️ 即将卸载 VLESS + Vision + Reality 节点..." yellow
+    print_msg "⚠️ 即将卸载 VLESS + XHTTP + Vision + Reality 节点..." yellow
     do_stop
     rm -f "/etc/systemd/system/${SYSTEMD_SERVICE}.service"
     rm -f /etc/init.d/xray
@@ -205,7 +206,7 @@ execute_installation() {
     public_key=$(echo "$keys" | grep 'Password' | awk -F': ' '{print $2}' | tr -d '"' | tr -d ' ')
     short_id=$(openssl rand -hex 8)
 
-    print_msg "正在写入配置文件 (官方 VLESS + Reality + Vision)..." yellow
+    print_msg "正在写入配置文件 (VLESS + XHTTP + Reality + Vision + Enc)..." yellow
     mkdir -p /etc/xray /var/log/xray
 
     cat >/etc/xray/config.json <<EOF
@@ -229,7 +230,12 @@ execute_installation() {
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/${UUID}-xh",
+          "mode": "auto",
+          "xPaddingBytes": "100-1000"
+        },
         "security": "reality",
         "realitySettings": {
           "dest": "${SNI}:443",
@@ -311,8 +317,8 @@ EOF
     echo "---------------------------------------"
     local ip remark
     ip=$(get_public_ip)
-    remark="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
-    echo "vless://${UUID}@${ip}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${public_key}&sid=${short_id}&flow=xtls-rprx-vision#${remark}"
+    remark="xhttp-reality-ipv4-$(date +%Y%m%d-%H%M)"
+    echo "vless://${UUID}@${ip}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${public_key}&sid=${short_id}&flow=xtls-rprx-vision&type=xhttp&path=%2f${UUID}-xh#${remark}"
     echo "---------------------------------------"
 
     cat >"$VARS_PATH" <<EOF
@@ -327,7 +333,7 @@ EOF
 do_install() {
     print_msg "--- Reality 节点安装向导 ---" blue
     print_msg "请选择您要安装的节点类型 (支持多选，如输入 1):" yellow
-    print_msg "  1) 安装 VLESS + Vision + Reality"
+    print_msg "  1) 安装 VLESS + XHTTP + Vision + Reality"
     read -rp "$(printf "${C_GREEN}请输入选项: ${C_NC}")" INSTALL_CHOICE
 
     INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr -d ' ' | tr '，' ',')
@@ -353,7 +359,7 @@ install_from_manager() {
 }
 
 show_help() {
-    print_msg "Reality 节点管理脚本" blue
+    print_msg "Reality 节点管理脚本 (VLESS + XHTTP + Vision + Reality)" blue
     echo "用法: bash $0 [命令]"
     echo ""
     echo "核心命令:"
