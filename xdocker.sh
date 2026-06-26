@@ -59,27 +59,27 @@ case "$1" in
         source "$XCONF_DIR/xray-vars.conf"
         IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}' )
         REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
-        echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
+        echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision&type=xhttp&path=%2f${UUID}-xh#${REMARK}"
         exit 0
         ;;
     start)
-        print_msg "正在启动 VLESS + Vision + Reality 节点..." green
+        print_msg "正在启动 VLESS + XHTTP + Vision + Reality 节点..." green
         start_xray
         exit 0
         ;;
     stop)
-        print_msg "正在停止 VLESS + Vision + Reality 节点..." yellow
+        print_msg "正在停止 VLESS + XHTTP + Vision + Reality 节点..." yellow
         stop_xray
         exit 0
         ;;
     uninstall)
         # 如果是直接运行 x.sh uninstall，则询问
         if [ -z "$2" ] || [ "$2" != "force" ]; then
-            read -rp "$(printf "\033[0;33m⚠️ 确认卸载 VLESS + Vision + Reality 节点？(y/n): \033[0m")" confirm
+            read -rp "$(printf "\033[0;33m⚠️ 确认卸载 VLESS + XHTTP + Vision + Reality 节点？(y/n): \033[0m")" confirm
             [ "$confirm" != "y" ] && print_msg "取消卸载" green && exit 0
         fi
         
-        print_msg "⚠️ 即将卸载 VLESS + Vision + Reality 节点..." yellow
+        print_msg "⚠️ 即将卸载 VLESS + XHTTP + Vision + Reality 节点..." yellow
         # 调用自身的 stop 命令
         bash "$0" stop >/dev/null 2>&1
         rm -rf "$XCONF_DIR" /var/log/xray "$XRAY_BIN"
@@ -152,13 +152,13 @@ SHORT_ID=$(openssl rand -hex 8)
 
 
 # 5️⃣ 目录和配置
-print_msg "正在写入配置文件 (官方 VLESS + Reality + Vision)..." yellow
+print_msg "正在写入配置文件 (VLESS + XHTTP + Reality + Vision + Enc)..." yellow
 mkdir -p /etc/xray /var/log/xray
 
 cat >"${XRAY_CONFIG}" <<EOF
 {
    "log": {
-    "loglevel": "debug",
+    "loglevel": "warning",
     "access": "/var/log/xray/access.log",
     "error": "/var/log/xray/error.log"
   },
@@ -176,7 +176,12 @@ cat >"${XRAY_CONFIG}" <<EOF
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/${UUID}-xh",
+          "mode": "auto",
+          "xPaddingBytes": "100-1000"
+        },
         "security": "reality",
         "realitySettings": {
           "dest": "${SNI}:443",
@@ -219,12 +224,12 @@ start_xray
 
 # 🔟 输出 VLESS Reality URI
 IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}' )
-REMARK="reality-ipv4-instance-$(date +%Y%m%d-%H%M)"
+REMARK="xhttp-reality-ipv4-$(date +%Y%m%d-%H%M)"
 
 echo ""
 print_msg "🎉 安装完成" green
 echo "---------------------------------------"
-echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision#${REMARK}"
+echo "vless://${UUID}@${IP}:${PORT}?encryption=none&security=reality&sni=${SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&flow=xtls-rprx-vision&type=xhttp&path=%2f${UUID}-xh#${REMARK}"
 echo "---------------------------------------"
 
 # 11. 保存变量
